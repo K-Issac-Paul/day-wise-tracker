@@ -6,6 +6,7 @@ class StorageManager {
         this.EXPENSES_KEY = 'protrack_expenses';
         this.TIME_ENTRIES_KEY = 'protrack_time_entries';
         this.THEME_KEY = 'protrack_theme';
+        this.BUDGET_KEY = 'protrack_monthly_budget';
     }
 
     // Get all expenses
@@ -93,6 +94,16 @@ class StorageManager {
 
     setTheme(theme) {
         localStorage.setItem(this.THEME_KEY, theme);
+    }
+
+    // Budget management
+    getMonthlyBudget() {
+        const data = localStorage.getItem(this.BUDGET_KEY);
+        return data ? parseFloat(data) : 0;
+    }
+
+    saveMonthlyBudget(amount) {
+        localStorage.setItem(this.BUDGET_KEY, amount);
     }
 }
 
@@ -257,6 +268,7 @@ class ProTrackApp {
         this.currentView = 'dashboard';
         this.selectedMonth = Utils.getCurrentMonth();
         this.charts = {};
+        this.timePicker = new TimePicker(); // Initialize custom time picker
 
         this.init();
     }
@@ -268,6 +280,7 @@ class ProTrackApp {
         this.setupModals();
         this.setupForms();
         this.setupFilters();
+        this.setupBudget();
         this.updateCurrentDate();
         this.renderDashboard();
     }
@@ -443,11 +456,26 @@ class ProTrackApp {
     openExpenseModal(expense = null) {
         const modal = document.getElementById('expense-modal');
         const form = document.getElementById('expense-form');
+        const categorySelect = document.getElementById('expense-category');
+        const customInput = document.getElementById('expense-category-custom');
 
         if (expense) {
             // Edit mode
             document.getElementById('expense-date').value = expense.date;
-            document.getElementById('expense-category').value = expense.category;
+
+            // Check if category is one of the options
+            const options = Array.from(categorySelect.options).map(o => o.value);
+            if (options.includes(expense.category) && expense.category !== 'Other') {
+                categorySelect.value = expense.category;
+                customInput.style.display = 'none';
+                customInput.required = false;
+            } else {
+                categorySelect.value = 'Other';
+                customInput.style.display = 'block';
+                customInput.required = true;
+                customInput.value = expense.category;
+            }
+
             document.getElementById('expense-amount').value = expense.amount;
             document.getElementById('expense-payment').value = expense.paymentMode;
             document.getElementById('expense-notes').value = expense.notes || '';
@@ -455,6 +483,8 @@ class ProTrackApp {
         } else {
             // Add mode
             form.reset();
+            customInput.style.display = 'none'; // Reset custom input visibility
+            customInput.required = false;
             document.getElementById('expense-date').value = Utils.getTodayDate();
             delete form.dataset.editId;
         }
@@ -465,21 +495,36 @@ class ProTrackApp {
     openTimeModal(entry = null) {
         const modal = document.getElementById('time-modal');
         const form = document.getElementById('time-form');
+        const activitySelect = document.getElementById('time-activity');
+        const customInput = document.getElementById('time-activity-custom');
 
         if (entry) {
             // Edit mode
             document.getElementById('time-date').value = entry.date;
-            document.getElementById('time-activity').value = entry.activity;
-            document.getElementById('time-hours').value = entry.hours;
-            document.getElementById('time-minutes').value = entry.minutes;
+
+            // Check if activity is one of the options
+            const options = Array.from(activitySelect.options).map(o => o.value);
+            if (options.includes(entry.activity) && entry.activity !== 'Other') {
+                activitySelect.value = entry.activity;
+                customInput.style.display = 'none';
+                customInput.required = false;
+            } else {
+                activitySelect.value = 'Other';
+                customInput.style.display = 'block';
+                customInput.required = true;
+                customInput.value = entry.activity;
+            }
+
+            document.getElementById('time-start').value = entry.startTime || '';
+            document.getElementById('time-end').value = entry.endTime || '';
             document.getElementById('time-notes').value = entry.notes || '';
             form.dataset.editId = entry.id;
         } else {
             // Add mode
             form.reset();
+            customInput.style.display = 'none'; // Reset custom input visibility
+            customInput.required = false;
             document.getElementById('time-date').value = Utils.getTodayDate();
-            document.getElementById('time-hours').value = 0;
-            document.getElementById('time-minutes').value = 0;
             delete form.dataset.editId;
         }
 
@@ -501,6 +546,20 @@ class ProTrackApp {
             this.handleExpenseSubmit(e.target);
         });
 
+        const expenseCategory = document.getElementById('expense-category');
+        if (expenseCategory) {
+            expenseCategory.addEventListener('change', (e) => {
+                const customInput = document.getElementById('expense-category-custom');
+                if (e.target.value === 'Other') {
+                    customInput.style.display = 'block';
+                    customInput.required = true;
+                } else {
+                    customInput.style.display = 'none';
+                    customInput.required = false;
+                }
+            });
+        }
+
         // Time form
         const timeForm = document.getElementById('time-form');
         timeForm.addEventListener('submit', (e) => {
@@ -508,22 +567,54 @@ class ProTrackApp {
             this.handleTimeSubmit(e.target);
         });
 
+        const timeActivity = document.getElementById('time-activity');
+        if (timeActivity) {
+            timeActivity.addEventListener('change', (e) => {
+                const customInput = document.getElementById('time-activity-custom');
+                if (e.target.value === 'Other') {
+                    customInput.style.display = 'block';
+                    customInput.required = true;
+                } else {
+                    customInput.style.display = 'none';
+                    customInput.required = false;
+                }
+            });
+        }
+
         // Time validation
-        const timeHours = document.getElementById('time-hours');
-        const timeMinutes = document.getElementById('time-minutes');
+        const timeStart = document.getElementById('time-start');
+        const timeEnd = document.getElementById('time-end');
         const timeDate = document.getElementById('time-date');
 
-        [timeHours, timeMinutes, timeDate].forEach(input => {
+        [timeStart, timeEnd, timeDate].forEach(input => {
             if (input) {
                 input.addEventListener('input', () => this.validateTimeEntry());
             }
         });
+
+        // Add auto-picker opening on click for all date/time inputs
+        const dateInputs = document.querySelectorAll('input[type="date"], input[type="time"]');
+        dateInputs.forEach(input => {
+            input.addEventListener('click', (e) => {
+                try {
+                    input.showPicker();
+                } catch (err) {
+                    // Fallback or ignore if not supported
+                    console.log('showPicker not supported');
+                }
+            });
+        });
     }
 
     handleExpenseSubmit(form) {
+        let category = document.getElementById('expense-category').value;
+        if (category === 'Other') {
+            category = document.getElementById('expense-category-custom').value;
+        }
+
         const expense = {
             date: document.getElementById('expense-date').value,
-            category: document.getElementById('expense-category').value,
+            category: category,
             amount: parseFloat(document.getElementById('expense-amount').value),
             paymentMode: document.getElementById('expense-payment').value,
             notes: document.getElementById('expense-notes').value
@@ -542,11 +633,37 @@ class ProTrackApp {
     }
 
     handleTimeSubmit(form) {
+        const startTime = document.getElementById('time-start').value;
+        const endTime = document.getElementById('time-end').value;
+
+        if (!startTime || !endTime) {
+            alert('Please select both start and end times');
+            return;
+        }
+
+        const start = new Date(`2000-01-01T${startTime}`);
+        const end = new Date(`2000-01-01T${endTime}`);
+
+        if (end <= start) {
+            alert('End time must be after start time');
+            return;
+        }
+
+        const diffMinutes = Math.round((end - start) / 60000);
+        const { hours, minutes } = Utils.fromMinutes(diffMinutes);
+
+        let activity = document.getElementById('time-activity').value;
+        if (activity === 'Other') {
+            activity = document.getElementById('time-activity-custom').value;
+        }
+
         const entry = {
             date: document.getElementById('time-date').value,
-            activity: document.getElementById('time-activity').value,
-            hours: parseInt(document.getElementById('time-hours').value) || 0,
-            minutes: parseInt(document.getElementById('time-minutes').value) || 0,
+            activity: activity,
+            startTime: startTime,
+            endTime: endTime,
+            hours: hours,
+            minutes: minutes,
             notes: document.getElementById('time-notes').value
         };
 
@@ -573,12 +690,20 @@ class ProTrackApp {
 
     validateTimeEntry() {
         const date = document.getElementById('time-date').value;
-        const hours = parseInt(document.getElementById('time-hours').value) || 0;
-        const minutes = parseInt(document.getElementById('time-minutes').value) || 0;
+        const startTime = document.getElementById('time-start').value;
+        const endTime = document.getElementById('time-end').value;
         const form = document.getElementById('time-form');
 
+        let newMinutes = 0;
+        if (startTime && endTime) {
+            const start = new Date(`2000-01-01T${startTime}`);
+            const end = new Date(`2000-01-01T${endTime}`);
+            if (end > start) {
+                newMinutes = Math.round((end - start) / 60000);
+            }
+        }
+
         const totalMinutes = this.getTotalMinutesForDate(date, form.dataset.editId);
-        const newMinutes = Utils.toMinutes(hours, minutes);
         const warning = document.getElementById('time-validation-warning');
 
         if (totalMinutes + newMinutes > 1440) {
@@ -774,11 +899,101 @@ class ProTrackApp {
                 `;
             }).join('');
     }
+    // ===================================
+    // Budget Management
+    // ===================================
+    setupBudget() {
+        const editBtn = document.getElementById('edit-budget-btn');
+        const saveBtn = document.getElementById('save-budget-btn');
+        const cancelBtn = document.getElementById('cancel-budget-btn');
+        const inputContainer = document.getElementById('budget-input-container');
+        const displayContainer = document.getElementById('budget-display-container');
+        const budgetInput = document.getElementById('monthly-budget-input');
+
+        if (editBtn) {
+            editBtn.addEventListener('click', () => {
+                const currentBudget = this.storage.getMonthlyBudget();
+                budgetInput.value = currentBudget || '';
+                inputContainer.style.display = 'block';
+                // editBtn.style.display = 'none';
+            });
+        }
+
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                inputContainer.style.display = 'none';
+                // editBtn.style.display = 'block';
+            });
+        }
+
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                const amount = parseFloat(budgetInput.value);
+                if (isNaN(amount) || amount < 0) {
+                    alert('Please enter a valid amount');
+                    return;
+                }
+                this.storage.saveMonthlyBudget(amount);
+                inputContainer.style.display = 'none';
+                // editBtn.style.display = 'block';
+                this.renderBudgetInfo();
+            });
+        }
+    }
+
+    renderBudgetInfo() {
+        const budget = this.storage.getMonthlyBudget();
+        const expenses = this.storage.getExpenses();
+        const currentMonth = Utils.getCurrentMonth();
+
+        // Filter expenses for current month
+        const monthlyExpenses = expenses.filter(e => {
+            const date = new Date(e.date);
+            return date.getMonth() === currentMonth.month && date.getFullYear() === currentMonth.year;
+        });
+
+        const totalSpent = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const balance = budget - totalSpent;
+        const percentage = budget > 0 ? (totalSpent / budget * 100) : 0;
+
+        // Update Text
+        document.getElementById('budget-income').textContent = Utils.formatCurrency(budget);
+        document.getElementById('budget-spent').textContent = Utils.formatCurrency(totalSpent);
+        document.getElementById('budget-balance').textContent = Utils.formatCurrency(balance);
+        document.getElementById('budget-percentage').textContent = `${percentage.toFixed(1)}% used`;
+
+        // Update Progress Bar
+        const progressBar = document.getElementById('budget-progress-fill');
+        const displayContainer = document.getElementById('budget-display-container');
+        const messageEl = document.getElementById('budget-message');
+
+        // Cap width at 100% for visual sanity, but keep color logic
+        const visualWidth = Math.min(percentage, 100);
+        progressBar.style.width = `${visualWidth}%`;
+
+        // Reset classes
+        displayContainer.classList.remove('budget-warning', 'budget-over-limit');
+        messageEl.textContent = '';
+
+        if (budget === 0) {
+            messageEl.textContent = 'Set a budget to track your monthly spending limit.';
+            progressBar.style.width = '0%';
+        } else if (percentage >= 100) {
+            displayContainer.classList.add('budget-over-limit');
+            messageEl.textContent = `⚠️ You have exceeded your budget by ${Utils.formatCurrency(Math.abs(balance))}!`;
+        } else if (percentage >= 85) {
+            displayContainer.classList.add('budget-warning');
+            messageEl.textContent = '⚠️ You are approaching your budget limit.';
+        } else {
+            messageEl.textContent = `You have ${Utils.formatCurrency(balance)} remaining for this month.`;
+        }
+    }
 
     // ===================================
     // Expenses View
     // ===================================
     renderExpensesView() {
+        this.renderBudgetInfo();
         const container = document.getElementById('expenses-table-container');
         let expenses = this.storage.getExpenses();
 
@@ -927,7 +1142,7 @@ class ProTrackApp {
             `;
             return;
         }
-        
+
         container.innerHTML = `
             <table class="data-table">
                 <thead>
@@ -1483,4 +1698,3 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new ProTrackApp();
 });
-
