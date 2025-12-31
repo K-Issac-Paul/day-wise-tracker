@@ -42,10 +42,13 @@
 	--radius-md: 12px;
 	--radius-lg: 16px;
 	--radius-xl: 24px;
+
+	color-scheme: light;
 }
 
 /* Dark Mode Variables */
 [data-theme="dark"] {
+	color-scheme: dark;
 	--bg-primary: #0f1419;
 	--bg-secondary: #1a1f2e;
 	--bg-tertiary: #252d3d;
@@ -537,6 +540,27 @@ body {
 	font-family: var(--font-primary);
 	transition: all var(--transition-fast);
 	outline: none;
+}
+
+/* Custom styling for date/time pickers to mix with UI */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+	cursor: pointer;
+	opacity: 0.6;
+	transition: all var(--transition-fast);
+	padding: 4px;
+	border-radius: 4px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+	opacity: 1;
+	background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+	filter: invert(1);
 }
 
 .input-field:focus,
@@ -1498,17 +1522,206 @@ textarea.input-field {
 		margin-left: 0;
 		max-width: 100%;
 	}
-
-	.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
 }
 
-@media (max-width: 600px) {
-  .form-row {
-    grid-template-columns: 1fr;
-  }
+/* ===================================
+   Custom Time Picker
+   =================================== */
+.custom-time-picker {
+	position: absolute;
+	background: var(--bg-secondary);
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-lg);
+	box-shadow: var(--shadow-xl);
+	padding: 16px;
+	width: 280px;
+	z-index: 2500;
+	display: none;
+	animation: fadeIn 0.15s ease;
 }
 
+.custom-time-picker.active {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.picker-header {
+	text-align: center;
+	font-weight: 600;
+	color: var(--text-primary);
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.picker-body {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	height: 200px;
+	color: var(--text-primary);
+	font-weight: 700;
+	font-size: 24px;
+}
+
+.picker-column {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 60px;
+	overflow-y: auto;
+	scroll-behavior: smooth;
+	border-radius: var(--radius-md);
+	background: var(--bg-tertiary);
+	padding: 4px;
+	/* Hide scrollbar */
+	scrollbar-width: none;
+}
+
+.picker-column::-webkit-scrollbar {
+	display: none;
+}
+
+.picker-item {
+	padding: 8px 0;
+	text-align: center;
+	font-size: 16px;
+	font-weight: 500;
+	cursor: pointer;
+	color: var(--text-secondary);
+	border-radius: var(--radius-sm);
+	transition: all var(--transition-fast);
+	flex-shrink: 0;
+}
+
+.picker-item:hover {
+	background: var(--bg-primary);
+	color: var(--text-primary);
+}
+
+.picker-item.selected {
+	background: var(--primary-gradient);
+	color: white;
+	font-weight: 700;
+	font-size: 18px;
+}
+
+.picker-footer {
+	display: flex;
+	justify-content: space-between;
+	padding-top: 12px;
+	border-top: 1px solid var(--border-color);
+}
+
+.picker-btn {
+	padding: 8px 16px;
+	border-radius: var(--radius-md);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	border: none;
+	transition: all var(--transition-fast);
+}
+
+.picker-btn.secondary {
+	background: transparent;
+	color: var(--text-secondary);
+}
+
+.picker-btn.secondary:hover {
+	background: var(--bg-tertiary);
+	color: var(--text-primary);
+}
+
+.picker-btn.primary {
+	background: var(--primary-gradient);
+	color: white;
+}
+
+.picker-btn.primary:hover {
+	transform: translateY(-1px);
+	box-shadow: var(--shadow-sm);
+}
+
+/* ===================================
+   Budget Card
+   =================================== */
+.budget-stats-row {
+	display: flex;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 20px;
+	flex-wrap: wrap;
+}
+
+.budget-stat-item {
+	flex: 1;
+	min-width: 120px;
+	background: var(--bg-tertiary);
+	padding: 16px;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--border-color);
+	text-align: center;
+}
+
+.budget-stat-item .label {
+	font-size: 13px;
+	color: var(--text-secondary);
+	margin-bottom: 8px;
+	display: block;
+	font-weight: 500;
+}
+
+.budget-stat-item h4 {
+	font-size: 20px;
+	font-weight: 700;
+	color: var(--text-primary);
+	font-family: var(--font-display);
+}
+
+.budget-progress-container {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	margin-bottom: 12px;
+}
+
+.budget-progress-bar {
+	flex: 1;
+	height: 12px;
+	background: var(--bg-tertiary);
+	border-radius: 100px;
+	overflow: hidden;
+}
+
+.budget-progress-fill {
+	height: 100%;
+	background: var(--success-gradient);
+	border-radius: 100px;
+	width: 0%;
+	transition: width 0.5s ease, background 0.3s ease;
+}
+
+.budget-percentage {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--text-secondary);
+	min-width: 60px;
+	text-align: right;
+}
+
+.budget-message {
+	font-size: 13px;
+	color: var(--text-secondary);
+	text-align: center;
+	margin-top: 8px;
+}
+
+.budget-over-limit .budget-progress-fill {
+	background: var(--danger-color);
+}
+
+.budget-warning .budget-progress-fill {
+	background: var(--warning-color);
 }
