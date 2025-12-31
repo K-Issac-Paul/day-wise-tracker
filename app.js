@@ -543,7 +543,35 @@ class ProTrackApp {
         this.refreshCurrentView();
     }
 
-    handleTimeSubmit(form) {
+    574
+    {
+            const entry = {
+      date: document.getElementById('time-date').value,
+      activity: document.getElementById('time-activity').value,
+      hours: parseInt(document.getElementById('time-hours').value) || 0,
+      minutes: parseInt(document.getElementById('time-minutes').value) || 0,
+      notes: document.getElementById('time-notes').value
+    };
+    
+    // Validate total time for the day
+    const totalMinutes = this.getTotalMinutesForDate(entry.date, form.dataset.editId);
+    const newMinutes = Utils.toMinutes(entry.hours, entry.minutes);
+    
+    if (totalMinutes + newMinutes > 1440) { // 24 hours = 1440 minutes
+      alert('Total time for this day exceeds 24 hours!');
+      return;
+    }
+    
+    if (form.dataset.editId) {
+      // Update existing entry
+      this.storage.updateTimeEntry(form.dataset.editId, entry);
+    } else {
+      // Add new entry
+      this.storage.addTimeEntry(entry);
+    }
+    
+    this.closeModal(document.getElementById('time-modal'));
+    this.refreshCurrentView();
             // Calculate hours and minutes from 'from' and 'to' times
     let hours, minutes;
     const timeFromValue = document.getElementById('time-from').value;
@@ -1547,3 +1575,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+
+574
