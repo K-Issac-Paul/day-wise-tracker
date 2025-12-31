@@ -480,6 +480,8 @@ class ProTrackApp {
             document.getElementById('time-date').value = Utils.getTodayDate();
             document.getElementById('time-hours').value = 0;
             document.getElementById('time-minutes').value = 0;
+                        document.getElementById('time-from').value = '';
+            document.getElementById('time-to').value = '';
             delete form.dataset.editId;
         }
 
@@ -545,6 +547,28 @@ class ProTrackApp {
         const entry = {
             date: document.getElementById('time-date').value,
             activity: document.getElementById('time-activity').value,
+                        let hours, minutes;
+            const timeFromValue = document.getElementById('time-from').value;
+            const timeToValue = document.getElementById('time-to').value;
+            
+            // Calculate duration from time-from and time-to if both are provided
+            if (timeFromValue && timeToValue) {
+              const [fromHours, fromMinutes] = timeFromValue.split(':').map(Number);
+              const [toHours, toMinutes] = timeToValue.split(':').map(Number);
+              const fromTotalMinutes = fromHours * 60 + fromMinutes;
+              const toTotalMinutes = toHours * 60 + toMinutes;
+              let diffMinutes = toTotalMinutes - fromTotalMinutes;
+              // Handle case where end time is next day (e.g., 22:00 to 02:00)
+              if (diffMinutes < 0) {
+                diffMinutes += 24 * 60;
+              }
+              hours = Math.floor(diffMinutes / 60);
+              minutes = diffMinutes % 60;
+            } else {
+              // Use manually entered hours and minutes
+              hours = parseInt(document.getElementById('time-hours').value) || 0;
+              minutes = parseInt(document.getElementById('time-minutes').value) || 0;
+            }
             hours: parseInt(document.getElementById('time-hours').value) || 0,
             minutes: parseInt(document.getElementById('time-minutes').value) || 0,
             notes: document.getElementById('time-notes').value
@@ -1483,3 +1507,4 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new ProTrackApp();
 });
+
