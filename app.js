@@ -521,39 +521,6 @@ class ProTrackApp {
             }
         });
                     
-            // Time-from and time-to calculation
-            const timeFrom = document.getElementById('time-from');
-            const timeTo = document.getElementById('time-to');
-            
-            if (timeFrom && timeTo) {
-              const calculateDuration = () => {
-                const fromValue = timeFrom.value;
-                const toValue = timeTo.value;
-                
-                if (fromValue && toValue) {
-                  const [fromHours, fromMinutes] = fromValue.split(':').map(Number);
-                  const [toHours, toMinutes] = toValue.split(':').map(Number);
-                  const fromTotalMinutes = fromHours * 60 + fromMinutes;
-                  const toTotalMinutes = toHours * 60 + toMinutes;
-                  let diffMinutes = toTotalMinutes - fromTotalMinutes;
-                  
-                  if (diffMinutes < 0) {
-                    diffMinutes += 24 * 60;
-                  }
-                  
-                  const hours = Math.floor(diffMinutes / 60);
-                  const minutes = diffMinutes % 60;
-                  
-                  document.getElementById('time-hours').value = hours;
-                  document.getElementById('time-minutes').value = minutes;
-                }
-              };
-              
-              timeFrom.addEventListener('change', calculateDuration);
-              timeTo.addEventListener('change', calculateDuration);
-            }
-    }
-
     handleExpenseSubmit(form) {
         const expense = {
             date: document.getElementById('expense-date').value,
@@ -1539,5 +1506,6 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new ProTrackApp();
 });
+
 
 
