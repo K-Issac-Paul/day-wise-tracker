@@ -547,7 +547,7 @@ class ProTrackApp {
             date: document.getElementById('time-date').value,
             activity: document.getElementById('time-activity').value,
                         let hours, minutes;
-            const timeFromValue = document.getElementById('time-from').value;
+           const timeFromValue = document.getElementById('time-from').value;
             const timeToValue = document.getElementById('time-to').value;
             
             // Calculate duration from time-from and time-to if both are provided
@@ -1506,6 +1506,7 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new ProTrackApp();
 });
+
 
 
 
