@@ -480,8 +480,6 @@ class ProTrackApp {
             document.getElementById('time-date').value = Utils.getTodayDate();
             document.getElementById('time-hours').value = 0;
             document.getElementById('time-minutes').value = 0;
-                        document.getElementById('time-from').value = '';
-            document.getElementById('time-to').value = '';
             delete form.dataset.editId;
         }
 
@@ -507,8 +505,7 @@ class ProTrackApp {
         const timeForm = document.getElementById('time-form');
         timeForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            this.546
-                (e.target);
+            this.handleTimeSubmit(e.target);
         });
 
         // Time validation
@@ -521,7 +518,8 @@ class ProTrackApp {
                 input.addEventListener('input', () => this.validateTimeEntry());
             }
         });
-                    
+    }
+
     handleExpenseSubmit(form) {
         const expense = {
             date: document.getElementById('expense-date').value,
@@ -543,95 +541,10 @@ class ProTrackApp {
         this.refreshCurrentView();
     }
 
-    574
-    {
-            const entry = {
-      date: document.getElementById('time-date').value,
-      activity: document.getElementById('time-activity').value,
-      hours: parseInt(document.getElementById('time-hours').value) || 0,
-      minutes: parseInt(document.getElementById('time-minutes').value) || 0,
-      notes: document.getElementById('time-notes').value
-    };
-    
-    // Validate total time for the day
-    const totalMinutes = this.getTotalMinutesForDate(entry.date, form.dataset.editId);
-    const newMinutes = Utils.toMinutes(entry.hours, entry.minutes);
-    
-    if (totalMinutes + newMinutes > 1440) { // 24 hours = 1440 minutes
-      alert('Total time for this day exceeds 24 hours!');
-      return;
-    }
-    
-    if (form.dataset.editId) {
-      // Update existing entry
-      this.storage.updateTimeEntry(form.dataset.editId, entry);
-    } else {
-      // Add new entry
-      this.storage.addTimeEntry(entry);
-    }
-    
-    this.closeModal(document.getElementById('time-modal'));
-    this.refreshCurrentView();
-            // Calculate hours and minutes from 'from' and 'to' times
-    let hours, minutes;
-    const timeFromValue = document.getElementById('time-from').value;
-    const timeToValue = document.getElementById('time-to').value;
-    
-    // Calculate duration from time-from and time-to if both are provided
-    if (timeFromValue && timeToValue) {
-      const [fromHours, fromMinutes] = timeFromValue.split(':').map(Number);
-      const [toHours, toMinutes] = timeToValue.split(':').map(Number);
-      const fromTotalMinutes = fromHours * 60 + fromMinutes;
-      const toTotalMinutes = toHours * 60 + toMinutes;
-      let diffMinutes = toTotalMinutes - fromTotalMinutes;
-      
-      // Handle case where end time is next day (e.g., 22:00 to 02:00)
-      if (diffMinutes < 0) {
-        diffMinutes += 24 * 60;
-      }
-      
-      hours = Math.floor(diffMinutes / 60);
-      minutes = diffMinutes % 60;
-    } else {
-      // Use manually entered hours and minutes as fallback
-      hours = parseInt(document.getElementById('time-hours').value) || 0;
-      minutes = parseInt(document.getElementById('time-minutes').value) || 0;
-    }
-    
-    // Create entry object with calculated or manual hours/minutes
-    const entry = {
-      date: document.getElementById('time-date').value,
-      activity: document.getElementById('time-activity').value,
-      hours,
-      minutes,
-      notes: document.getElementById('time-notes').value
-    };
-
+    handleTimeSubmit(form) {
         const entry = {
             date: document.getElementById('time-date').value,
             activity: document.getElementById('time-activity').value,
-                        let hours, minutes;
-           const timeFromValue = document.getElementById('time-from').value;
-            const timeToValue = document.getElementById('time-to').value;
-            
-            // Calculate duration from time-from and time-to if both are provided
-            if (timeFromValue && timeToValue) {
-              const [fromHours, fromMinutes] = timeFromValue.split(':').map(Number);
-              const [toHours, toMinutes] = timeToValue.split(':').map(Number);
-              const fromTotalMinutes = fromHours * 60 + fromMinutes;
-              const toTotalMinutes = toHours * 60 + toMinutes;
-              let diffMinutes = toTotalMinutes - fromTotalMinutes;
-              // Handle case where end time is next day (e.g., 22:00 to 02:00)
-              if (diffMinutes < 0) {
-                diffMinutes += 24 * 60;
-              }
-              hours = Math.floor(diffMinutes / 60);
-              minutes = diffMinutes % 60;
-            } else {
-              // Use manually entered hours and minutes
-              hours = parseInt(document.getElementById('time-hours').value) || 0;
-              minutes = parseInt(document.getElementById('time-minutes').value) || 0;
-            }
             hours: parseInt(document.getElementById('time-hours').value) || 0,
             minutes: parseInt(document.getElementById('time-minutes').value) || 0,
             notes: document.getElementById('time-notes').value
@@ -1014,7 +927,7 @@ class ProTrackApp {
             `;
             return;
         }
-
+        
         container.innerHTML = `
             <table class="data-table">
                 <thead>
@@ -1571,9 +1484,3 @@ document.addEventListener('DOMContentLoaded', () => {
     app = new ProTrackApp();
 });
 
-
-
-
-
-
-574
