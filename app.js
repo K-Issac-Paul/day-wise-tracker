@@ -507,7 +507,8 @@ class ProTrackApp {
         const timeForm = document.getElementById('time-form');
         timeForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            this.handleTimeSubmit(e.target);
+            this.546
+                (e.target);
         });
 
         // Time validation
@@ -543,6 +544,41 @@ class ProTrackApp {
     }
 
     handleTimeSubmit(form) {
+            // Calculate hours and minutes from 'from' and 'to' times
+    let hours, minutes;
+    const timeFromValue = document.getElementById('time-from').value;
+    const timeToValue = document.getElementById('time-to').value;
+    
+    // Calculate duration from time-from and time-to if both are provided
+    if (timeFromValue && timeToValue) {
+      const [fromHours, fromMinutes] = timeFromValue.split(':').map(Number);
+      const [toHours, toMinutes] = timeToValue.split(':').map(Number);
+      const fromTotalMinutes = fromHours * 60 + fromMinutes;
+      const toTotalMinutes = toHours * 60 + toMinutes;
+      let diffMinutes = toTotalMinutes - fromTotalMinutes;
+      
+      // Handle case where end time is next day (e.g., 22:00 to 02:00)
+      if (diffMinutes < 0) {
+        diffMinutes += 24 * 60;
+      }
+      
+      hours = Math.floor(diffMinutes / 60);
+      minutes = diffMinutes % 60;
+    } else {
+      // Use manually entered hours and minutes as fallback
+      hours = parseInt(document.getElementById('time-hours').value) || 0;
+      minutes = parseInt(document.getElementById('time-minutes').value) || 0;
+    }
+    
+    // Create entry object with calculated or manual hours/minutes
+    const entry = {
+      date: document.getElementById('time-date').value,
+      activity: document.getElementById('time-activity').value,
+      hours,
+      minutes,
+      notes: document.getElementById('time-notes').value
+    };
+
         const entry = {
             date: document.getElementById('time-date').value,
             activity: document.getElementById('time-activity').value,
@@ -1506,6 +1542,7 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new ProTrackApp();
 });
+
 
 
 
