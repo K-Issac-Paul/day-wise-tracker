@@ -242,6 +242,60 @@
 					</button>
 				</header>
 
+				<!-- budget card -->
+				<div class="budget-card card" style="margin-bottom: 24px;">
+					<div class="card-body">
+						<div class="card-header"
+							style="padding: 0; border: none; margin-bottom: 16px; justify-content: space-between;">
+							<div>
+								<h3 style="font-size: 18px; margin-bottom: 4px;">Monthly Budget</h3>
+								<p class="subtitle" style="margin-bottom: 0;">Manage your monthly spending limit</p>
+							</div>
+							<button id="edit-budget-btn" class="btn-icon" title="Edit Budget">
+								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+									stroke-width="2">
+									<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+									<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+								</svg>
+							</button>
+						</div>
+
+						<div id="budget-input-container" style="display: none; margin-bottom: 16px;">
+							<div style="display: flex; gap: 12px; align-items: center;">
+								<input type="number" id="monthly-budget-input"
+									placeholder="Enter Monthly Income / Pocket Money" class="input-field"
+									style="flex: 1;">
+								<button id="save-budget-btn" class="btn-primary">Save</button>
+								<button id="cancel-budget-btn" class="btn-secondary">Cancel</button>
+							</div>
+						</div>
+
+						<div id="budget-display-container">
+							<div class="budget-stats-row">
+								<div class="budget-stat-item">
+									<span class="label">Total Budget</span>
+									<h4 id="budget-income">₹0</h4>
+								</div>
+								<div class="budget-stat-item">
+									<span class="label">Spent So Far</span>
+									<h4 id="budget-spent" class="expense-text">₹0</h4>
+								</div>
+								<div class="budget-stat-item">
+									<span class="label">Remaining</span>
+									<h4 id="budget-balance">₹0</h4>
+								</div>
+							</div>
+							<div class="budget-progress-container">
+								<div class="budget-progress-bar">
+									<div id="budget-progress-fill" class="budget-progress-fill"></div>
+								</div>
+								<span id="budget-percentage" class="budget-percentage">0% used</span>
+							</div>
+							<p id="budget-message" class="budget-message"></p>
+						</div>
+					</div>
+				</div>
+
 				<div class="filters-bar">
 					<input type="date" id="expense-date-filter" class="input-field">
 					<select id="expense-category-filter" class="select-field">
@@ -489,6 +543,8 @@
 						<option value="Medical">💊 Medical</option>
 						<option value="Other">📦 Other</option>
 					</select>
+					<input type="text" id="expense-category-custom" class="input-field" placeholder="Specify Category"
+						style="margin-top: 10px; display: none; width: 100%;">
 				</div>
 				<div class="form-group">
 					<label for="expense-amount">Amount (₹)</label>
@@ -546,15 +602,19 @@
 						<option value="Learning">📚 Learning / Upskilling</option>
 						<option value="Other">📌 Other</option>
 					</select>
+					<input type="text" id="time-activity-custom" class="input-field" placeholder="Specify Activity"
+						style="margin-top: 10px; display: none; width: 100%;">
 				</div>
 				<div class="form-row">
 					<div class="form-group">
-						<label for="time-hours">Hours</label>
-						<input type="number" id="time-hours" class="input-field" min="0" max="24" value="0" required>
+						<label for="time-start">From Time</label>
+						<input type="text" id="time-start" class="input-field time-input" placeholder="--:--" readonly
+							required>
 					</div>
 					<div class="form-group">
-						<label for="time-minutes">Minutes</label>
-						<input type="number" id="time-minutes" class="input-field" min="0" max="59" value="0" required>
+						<label for="time-end">To Time</label>
+						<input type="text" id="time-end" class="input-field time-input" placeholder="--:--" readonly
+							required>
 					</div>
 				</div>
 				<div class="form-group">
@@ -577,6 +637,7 @@
 	<div id="edit-time-modal" class="modal"></div>
 
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+	<script src="timepicker.js"></script>
 	<script src="app.js"></script>
 </body>
 
