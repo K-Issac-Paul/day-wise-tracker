@@ -1254,22 +1254,63 @@ textarea.input-field {
 		font-size: 14px;
 	}
 
-	/* Table responsiveness */
-	.data-table {
+	/* Table responsiveness - Card Layout */
+	.data-table,
+	.data-table tbody,
+	.data-table tr,
+	.data-table td {
 		display: block;
-		overflow-x: auto;
-		white-space: nowrap;
-		-webkit-overflow-scrolling: touch;
+		width: 100%;
 	}
 
 	.data-table thead {
-		display: table-header-group;
+		display: none;
 	}
 
-	.data-table th,
+	.data-table tr {
+		margin-bottom: 16px;
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-color);
+		border-radius: var(--radius-md);
+		padding: 16px;
+		box-shadow: var(--shadow-sm);
+	}
+
 	.data-table td {
-		padding: 12px 10px;
-		font-size: 13px;
+		padding: 10px 0;
+		border-bottom: 1px solid var(--bg-tertiary);
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		font-size: 14px;
+		text-align: right;
+	}
+
+	.data-table td:last-child {
+		border-bottom: none;
+		margin-top: 8px;
+		justify-content: flex-end;
+		padding-bottom: 0;
+	}
+
+	.data-table td::before {
+		content: attr(data-label);
+		font-weight: 600;
+		color: var(--text-secondary);
+		text-align: left;
+		margin-right: auto;
+		/* Push content to right */
+		padding-right: 16px;
+	}
+
+	/* Adjustments for specific columns */
+	.data-table td[data-label="Actions"] {
+		justify-content: flex-end;
+	}
+
+	/* Ensure long text doesn't break layout */
+	.data-table td span {
+		text-align: right;
 	}
 
 	/* Modal adjustments */
