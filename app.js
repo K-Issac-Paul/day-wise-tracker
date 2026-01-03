@@ -234,6 +234,7 @@ const Utils = {
     },
 
     // Export to CSV
+    // Export to CSV
     exportToCSV(data, filename) {
         if (data.length === 0) {
             alert('No data to export');
@@ -245,17 +246,28 @@ const Utils = {
             headers.join(','),
             ...data.map(row => headers.map(header => {
                 const value = row[header] || '';
+                // Handle values offering proper escaping if needed, but for now simple quote wrap is okay
                 return `"${value}"`;
             }).join(','))
         ].join('\n');
 
-        const blob = new Blob([csvContent], { type: 'text/csv' });
+        // Add BOM for Excel UTF-8 compatibility
+        const BOM = '\uFEFF';
+        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `${filename}_${this.getTodayDate()}.csv`;
+
+        // Append to body to ensure click works in all contexts
+        document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
+
+        // Clean up
+        setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }, 100);
     }
 };
 
@@ -899,6 +911,7 @@ class ProTrackApp {
                 `;
             }).join('');
     }
+
     // ===================================
     // Budget Management
     // ===================================
@@ -1047,17 +1060,17 @@ class ProTrackApp {
                 </thead>
                 <tbody>
                     ${expenses.map(expense => `
-                        <tr>
-                            <td>${Utils.formatDate(expense.date)}</td>
-                            <td>
+                        <tr class="mobile-card-row">
+                            <td data-label="Date">${Utils.formatDate(expense.date)}</td>
+                            <td data-label="Category">
                                 <span style="display: inline-flex; align-items: center; gap: 8px;">
                                     ${Utils.getCategoryIcon(expense.category)} ${expense.category}
                                 </span>
                             </td>
-                            <td><strong>${Utils.formatCurrency(expense.amount)}</strong></td>
-                            <td>${expense.paymentMode}</td>
-                            <td>${expense.notes || '-'}</td>
-                            <td>
+                            <td data-label="Amount"><strong>${Utils.formatCurrency(expense.amount)}</strong></td>
+                            <td data-label="Payment Mode">${expense.paymentMode}</td>
+                            <td data-label="Notes">${expense.notes || '-'}</td>
+                            <td data-label="Actions">
                                 <div class="table-actions">
                                     <button class="btn-edit" onclick="app.editExpense('${expense.id}')">Edit</button>
                                     <button class="btn-delete" onclick="app.deleteExpense('${expense.id}')">Delete</button>
@@ -1156,16 +1169,16 @@ class ProTrackApp {
                 </thead>
                 <tbody>
                     ${entries.map(entry => `
-                        <tr>
-                            <td>${Utils.formatDate(entry.date)}</td>
-                            <td>
+                        <tr class="mobile-card-row">
+                            <td data-label="Date">${Utils.formatDate(entry.date)}</td>
+                            <td data-label="Activity">
                                 <span style="display: inline-flex; align-items: center; gap: 8px;">
                                     ${Utils.getActivityIcon(entry.activity)} ${entry.activity}
                                 </span>
                             </td>
-                            <td><strong>${Utils.formatDuration(entry.hours, entry.minutes)}</strong></td>
-                            <td>${entry.notes || '-'}</td>
-                            <td>
+                            <td data-label="Duration"><strong>${Utils.formatDuration(entry.hours, entry.minutes)}</strong></td>
+                            <td data-label="Notes">${entry.notes || '-'}</td>
+                            <td data-label="Actions">
                                 <div class="table-actions">
                                     <button class="btn-edit" onclick="app.editTimeEntry('${entry.id}')">Edit</button>
                                     <button class="btn-delete" onclick="app.deleteTimeEntry('${entry.id}')">Delete</button>
