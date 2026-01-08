@@ -1,0 +1,33 @@
+{
+  "name": "day-wise-tracker",
+  "version": "1.0.0",
+  "description": "A comprehensive, modern web application designed specifically for working professionals to track daily expenses and time allocation with beautiful visualizations and insights.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "npx nodemon server.js",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/K-Issac-Paul/day-wise-tracker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/K-Issac-Paul/day-wise-tracker/issues"
+  },
+  "homepage": "https://github.com/K-Issac-Paul/day-wise-tracker#readme",
+  "dependencies": {
+    "body-parser": "^2.2.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-session": "^1.18.2",
+    "mongoose": "^9.1.2",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0"
+  }
+}

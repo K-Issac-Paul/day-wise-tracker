@@ -3,107 +3,112 @@
 // ===================================
 class StorageManager {
     constructor() {
-        this.EXPENSES_KEY = 'protrack_expenses';
-        this.TIME_ENTRIES_KEY = 'protrack_time_entries';
+        this.BASE_URL = 'http://127.0.0.1:5000/api';
+        this.userId = this.getUserId();
         this.THEME_KEY = 'protrack_theme';
-        this.BUDGET_KEY = 'protrack_monthly_budget';
     }
 
-    // Get all expenses
-    getExpenses() {
-        const data = localStorage.getItem(this.EXPENSES_KEY);
-        return data ? JSON.parse(data) : [];
-    }
-
-    // Save expenses
-    saveExpenses(expenses) {
-        localStorage.setItem(this.EXPENSES_KEY, JSON.stringify(expenses));
-    }
-
-    // Add expense
-    addExpense(expense) {
-        const expenses = this.getExpenses();
-        expense.id = Date.now().toString();
-        expenses.push(expense);
-        this.saveExpenses(expenses);
-        return expense;
-    }
-
-    // Update expense
-    updateExpense(id, updatedExpense) {
-        const expenses = this.getExpenses();
-        const index = expenses.findIndex(e => e.id === id);
-        if (index !== -1) {
-            expenses[index] = { ...expenses[index], ...updatedExpense };
-            this.saveExpenses(expenses);
-            return expenses[index];
+    getUserId() {
+        const userJson = localStorage.getItem('protrack_user');
+        if (userJson) {
+            const user = JSON.parse(userJson);
+            return user._id; // Ensure server returns _id
         }
         return null;
     }
 
-    // Delete expense
-    deleteExpense(id) {
-        const expenses = this.getExpenses();
-        const filtered = expenses.filter(e => e.id !== id);
-        this.saveExpenses(filtered);
-    }
-
-    // Get all time entries
-    getTimeEntries() {
-        const data = localStorage.getItem(this.TIME_ENTRIES_KEY);
-        return data ? JSON.parse(data) : [];
-    }
-
-    // Save time entries
-    saveTimeEntries(entries) {
-        localStorage.setItem(this.TIME_ENTRIES_KEY, JSON.stringify(entries));
-    }
-
-    // Add time entry
-    addTimeEntry(entry) {
-        const entries = this.getTimeEntries();
-        entry.id = Date.now().toString();
-        entries.push(entry);
-        this.saveTimeEntries(entries);
-        return entry;
-    }
-
-    // Update time entry
-    updateTimeEntry(id, updatedEntry) {
-        const entries = this.getTimeEntries();
-        const index = entries.findIndex(e => e.id === id);
-        if (index !== -1) {
-            entries[index] = { ...entries[index], ...updatedEntry };
-            this.saveTimeEntries(entries);
-            return entries[index];
+    async apiCall(endpoint, method = 'GET', body = null) {
+        if (!this.userId) {
+            this.userId = this.getUserId();
+            if (!this.userId) return [];
         }
-        return null;
+
+        try {
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include' // Required for session cookies
+            };
+            if (body) {
+                body.userId = this.userId;
+                options.body = JSON.stringify(body);
+            }
+
+            const response = await fetch(`${this.BASE_URL}${endpoint}`, options);
+            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+            return await response.json();
+        } catch (error) {
+            console.error('API Request Failed:', error);
+            return [];
+        }
     }
 
-    // Delete time entry
-    deleteTimeEntry(id) {
-        const entries = this.getTimeEntries();
-        const filtered = entries.filter(e => e.id !== id);
-        this.saveTimeEntries(filtered);
+    // --- Expenses ---
+    async getExpenses() {
+        if (!this.userId) return [];
+        return await this.apiCall(`/expenses/${this.userId}`);
     }
 
-    // Theme management
+    async addExpense(expense) {
+        return await this.apiCall('/expenses', 'POST', expense);
+    }
+
+    async updateExpense(id, expense) {
+        return await this.apiCall(`/expenses/${id}`, 'PUT', expense);
+    }
+
+    async deleteExpense(id) {
+        return await this.apiCall(`/expenses/${id}`, 'DELETE');
+    }
+
+    // --- Time Entries ---
+    async getTimeEntries() {
+        if (!this.userId) return [];
+        const entries = await this.apiCall(`/time/${this.userId}`);
+        return (entries || []).map(entry => {
+            // Normalize legacy data: recalculate hours/minutes if missing
+            if ((entry.hours === undefined || entry.minutes === undefined) && entry.startTime && entry.endTime) {
+                const start = new Date(`2000-01-01T${entry.startTime}`);
+                const end = new Date(`2000-01-01T${entry.endTime}`);
+                let diffMinutes = Math.round((end - start) / 60000);
+                if (diffMinutes <= 0) diffMinutes += 1440;
+                const { hours, minutes } = Utils.fromMinutes(diffMinutes);
+                entry.hours = hours;
+                entry.minutes = minutes;
+            }
+            return entry;
+        });
+    }
+
+    async addTimeEntry(entry) {
+        return await this.apiCall('/time', 'POST', entry);
+    }
+
+    async updateTimeEntry(id, entry) {
+        return await this.apiCall(`/time/${id}`, 'PUT', entry);
+    }
+
+    async deleteTimeEntry(id) {
+        return await this.apiCall(`/time/${id}`, 'DELETE');
+    }
+
+    // --- Budget ---
+    async getMonthlyBudget() {
+        const data = await this.apiCall(`/budget/${this.userId}`);
+        return data && data.amount ? parseFloat(data.amount) : 0;
+    }
+
+    async saveMonthlyBudget(amount) {
+        return await this.apiCall('/budget', 'POST', { amount });
+    }
+
+    // --- Theme (Keep Local) ---
     getTheme() {
         return localStorage.getItem(this.THEME_KEY) || 'light';
     }
 
     setTheme(theme) {
         localStorage.setItem(this.THEME_KEY, theme);
-    }
-
-    // Budget management
-    getMonthlyBudget() {
-        const data = localStorage.getItem(this.BUDGET_KEY);
-        return data ? parseFloat(data) : 0;
-    }
-
-    saveMonthlyBudget(amount) {
-        localStorage.setItem(this.BUDGET_KEY, amount);
     }
 }
 
@@ -233,11 +238,51 @@ const Utils = {
         return colors[category] || '#a0aec0';
     },
 
+    to24Hour(timeStr) {
+        // timeStr format: "02:30 PM" or "14:30"
+        if (!timeStr) return null;
+        timeStr = timeStr.trim();
+
+        if (timeStr.includes(':') && !timeStr.includes(' ')) return timeStr; // Already 24h
+
+        const parts = timeStr.split(' ');
+        if (parts.length < 2) return null;
+
+        const time = parts[0];
+        const modifier = parts[1].toUpperCase();
+
+        const timeParts = time.split(':');
+        if (timeParts.length < 2) return null;
+
+        let hours = timeParts[0];
+        let minutes = timeParts[1];
+
+        if (hours === '12') {
+            hours = '00';
+        }
+
+        if (modifier === 'PM') {
+            hours = (parseInt(hours, 10) + 12).toString();
+        }
+
+        return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    },
+
+    to12Hour(timeStr) {
+        // timeStr format: "14:30" -> "02:30 PM"
+        if (!timeStr) return '';
+        const [hour, minute] = timeStr.split(':');
+        const h = parseInt(hour, 10);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        return `${h12.toString().padStart(2, '0')}:${minute} ${ampm}`;
+    },
+
     // Export to CSV
     // Export to CSV
     exportToCSV(data, filename) {
         if (data.length === 0) {
-            alert('No data to export');
+            console.warn('No data to export');
             return;
         }
 
@@ -272,10 +317,416 @@ const Utils = {
 };
 
 // ===================================
+// Authentication Manager
+// ===================================
+class AuthManager {
+    constructor() {
+        this.USER_KEY = 'protrack_user';
+        this.REGISTERED_USERS_KEY = 'protrack_registered_users';
+        this.container = document.getElementById('auth-container');
+        this.appContainer = document.getElementById('app-container');
+        this.loginForm = document.getElementById('login-form');
+        this.registerForm = document.getElementById('register-form');
+        this.resetPasswordForm = document.getElementById('reset-password-form');
+        this.logoutBtn = document.getElementById('logout-btn');
+        this.userNameEl = document.getElementById('display-user-name');
+        this.userAvatarEl = document.getElementById('user-avatar-initial');
+
+        // Expose AuthManager globally for oauth.js to access
+        window.authManager = this;
+
+        this.init();
+    }
+
+    init() {
+        this.bindEvents();
+        this.checkAuth();
+    }
+
+    async checkAuth() {
+        console.log('--- Auth Check Started ---');
+        // 1. Try Local Storage first
+        const userJson = localStorage.getItem(this.USER_KEY);
+        if (userJson) {
+            try {
+                const user = JSON.parse(userJson);
+                console.log('Local user found:', user.email);
+                this.showApp(user);
+                return;
+            } catch (e) {
+                console.error("Error parsing user data", e);
+            }
+        }
+
+        // 2. If no local user, check if server has a session
+        try {
+            console.log('Checking server session at http://127.0.0.1:5000/api/auth/user...');
+            const response = await fetch('http://127.0.0.1:5000/api/auth/user', {
+                credentials: 'include'
+            });
+
+            console.log('Server response status:', response.status);
+            if (response.ok) {
+                const user = await response.json();
+                console.log('Server session found! User:', user.email);
+                localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+                this.showApp(user);
+            } else {
+                console.log('No server session found (401).');
+                this.showAuth();
+            }
+        } catch (error) {
+            console.error('Failed to check server session:', error);
+            this.showAuth();
+        }
+    }
+
+    getRegisteredUsers() {
+        const users = localStorage.getItem(this.REGISTERED_USERS_KEY);
+        return users ? JSON.parse(users) : {};
+    }
+
+    registerUser(email, name, password) {
+        const users = this.getRegisteredUsers();
+        if (users[email]) {
+            this.showError('Account already exists! Please sign in.');
+            this.switchToLogin();
+            return false;
+        }
+
+        // Save user
+        users[email] = {
+            name: name,
+            email: email,
+            password: password, // In a real app, this should be hashed
+            createdAt: new Date().toISOString()
+        };
+        localStorage.setItem(this.REGISTERED_USERS_KEY, JSON.stringify(users));
+        return true;
+    }
+
+    validateUser(input, password) {
+        const users = this.getRegisteredUsers();
+        let user = users[input]; // Try direct email lookup
+
+        // If not found by email, try searching by name
+        if (!user) {
+            const allUsers = Object.values(users);
+            user = allUsers.find(u => u.name === input || u.name.toLowerCase() === input.toLowerCase());
+        }
+
+        if (!user) {
+            return { valid: false, reason: 'not_found' };
+        }
+
+        // Simple password check (ensure input password matches stored password)
+        if (user.password !== password) {
+            return { valid: false, reason: 'wrong_password' };
+        }
+
+        return { valid: true, user: user };
+    }
+
+    bindEvents() {
+        // Password Toggle (Login)
+        const toggleLoginBtn = document.getElementById('toggle-password');
+        if (toggleLoginBtn) {
+            toggleLoginBtn.addEventListener('click', () => {
+                this.togglePasswordVisibility('login-password', toggleLoginBtn);
+            });
+        }
+
+        // Password Toggle (Register)
+        const toggleRegBtn = document.getElementById('toggle-reg-password');
+        if (toggleRegBtn) {
+            toggleRegBtn.addEventListener('click', () => {
+                this.togglePasswordVisibility('reg-password', toggleRegBtn);
+            });
+        }
+
+        // Toggle forms
+        document.getElementById('show-register').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.switchToRegister();
+        });
+
+        document.getElementById('show-login').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.switchToLogin();
+        });
+
+        // Show Forgot Password
+        document.getElementById('show-forgot-password').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.switchToForgotPassword();
+        });
+
+        // Back to Login
+        document.getElementById('back-to-login').addEventListener('click', (e) => {
+            e.preventDefault();
+            this.switchToLogin();
+        });
+
+        // Toggle Reset Password visibility
+        const toggleResetBtn = document.getElementById('toggle-reset-password');
+        if (toggleResetBtn) {
+            toggleResetBtn.addEventListener('click', () => {
+                this.togglePasswordVisibility('reset-new-password', toggleResetBtn);
+            });
+        }
+
+        // Reset Password Submit
+        this.resetPasswordForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleResetPassword();
+        });
+
+        // Login Submit
+        this.loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            this.hideError();
+
+            const result = this.validateUser(email, password);
+
+            if (result.valid) {
+                this.createSession(result.user);
+            } else {
+                if (result.reason === 'not_found') {
+                    this.showError(`
+                        Account not found. 
+                        <a href="#" id="inline-register-link" style="color:var(--danger-color); font-weight:700; text-decoration:underline;">
+                            Create an account?
+                        </a>
+                    `);
+
+                    document.getElementById('inline-register-link').addEventListener('click', (ev) => {
+                        ev.preventDefault();
+                        this.switchToRegister();
+                        const regEmail = document.getElementById('reg-email');
+                        if (regEmail) regEmail.value = email;
+                    });
+
+                } else if (result.reason === 'wrong_password') {
+                    this.showError('Incorrect password. Please try again.');
+                }
+            }
+        });
+
+        // Register Submit
+        this.registerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('reg-name').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+
+            if (this.registerUser(email, name, password)) {
+                this.switchToLogin();
+                this.showError('Account created! You can now sign in.'); // Using showError for success message temporarily
+                // Pre-fill login email
+                const loginEmail = document.getElementById('login-email');
+                if (loginEmail) loginEmail.value = email;
+            }
+        });
+
+        // Social Login
+        const socialButtons = [
+            { id: 'login-google', provider: 'google' },
+            { id: 'reg-google', provider: 'google' }
+        ];
+
+        socialButtons.forEach(btn => {
+            const el = document.getElementById(btn.id);
+            if (el) {
+                el.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    window.location.href = `http://127.0.0.1:5000/api/auth/${btn.provider}`;
+                });
+            }
+        });
+
+
+        // Logout
+        if (this.logoutBtn) {
+            this.logoutBtn.addEventListener('click', () => {
+                this.logout();
+            });
+        }
+    }
+
+    showError(msg) {
+        const errorEl = document.getElementById('login-error');
+        if (errorEl) {
+            errorEl.innerHTML = msg;
+            errorEl.classList.add('visible');
+            setTimeout(() => {
+                errorEl.classList.remove('visible'); // Remove shake animation class to re-trigger if needed
+                errorEl.style.display = 'block'; // Keep visible
+            }, 500);
+        }
+    }
+
+    hideError() {
+        const errorEl = document.getElementById('login-error');
+        if (errorEl) {
+            errorEl.classList.remove('visible');
+            errorEl.style.display = 'none';
+            errorEl.innerHTML = '';
+        }
+    }
+
+    togglePasswordVisibility(inputId, toggleBtn) {
+        const passwordInput = document.getElementById(inputId);
+        const eyeOpen = toggleBtn.querySelector('.eye-open');
+        const eyeClosed = toggleBtn.querySelector('.eye-closed');
+
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            eyeOpen.style.display = 'none';
+            eyeClosed.style.display = 'block';
+        } else {
+            passwordInput.type = 'password';
+            eyeOpen.style.display = 'block';
+            eyeClosed.style.display = 'none';
+        }
+    }
+
+    switchToRegister() {
+        this.loginForm.classList.remove('active');
+        this.registerForm.classList.remove('hidden');
+        this.registerForm.classList.add('active');
+    }
+
+    switchToLogin() {
+        this.registerForm.classList.remove('active');
+        this.registerForm.classList.add('hidden');
+        this.resetPasswordForm.classList.remove('active');
+        this.resetPasswordForm.classList.add('hidden');
+        this.loginForm.classList.add('active');
+        this.loginForm.classList.remove('hidden');
+    }
+
+    switchToForgotPassword() {
+        this.loginForm.classList.remove('active');
+        this.loginForm.classList.add('hidden');
+        this.resetPasswordForm.classList.remove('hidden');
+        this.resetPasswordForm.classList.add('active');
+    }
+
+    async handleResetPassword() {
+        const email = document.getElementById('reset-email').value;
+        const newPassword = document.getElementById('reset-new-password').value;
+
+        try {
+            const response = await fetch('http://127.0.0.1:5000/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, newPassword })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Update local registry too
+                const users = this.getRegisteredUsers();
+                if (users[email]) {
+                    users[email].password = newPassword;
+                    localStorage.setItem(this.REGISTERED_USERS_KEY, JSON.stringify(users));
+                }
+
+                alert('Password updated successfully! Please sign in with your new password.');
+                this.switchToLogin();
+            } else {
+                alert(data.error || 'Failed to update password');
+            }
+        } catch (error) {
+            console.error('Password reset error:', error);
+            alert('An error occurred. Please try again later.');
+        }
+    }
+
+    async createSession(user) {
+        try {
+            // Sync with backend to get MongoDB _id
+            const response = await fetch('http://127.0.0.1:5000/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    email: user.email,
+                    name: user.name,
+                    picture: user.picture,
+                    password: user.password
+                })
+            });
+
+            if (response.ok) {
+                const dbUser = await response.json();
+                user._id = dbUser._id; // Attach DB ID
+            }
+        } catch (error) {
+            console.error('Backend sync failed (Local Auth):', error);
+        }
+
+        localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+        this.showApp(user);
+    }
+
+
+
+    async logout() {
+        localStorage.removeItem(this.USER_KEY);
+
+        try {
+            // Also notify backend to clear session cookie
+            await fetch('http://127.0.0.1:5000/api/auth/logout', { credentials: 'include' });
+        } catch (e) {
+            console.error("Backend logout failed:", e);
+        }
+
+        this.showAuth();
+        // Clear forms
+        if (document.getElementById('login-email')) document.getElementById('login-email').value = '';
+        if (document.getElementById('login-password')) document.getElementById('login-password').value = '';
+        if (document.getElementById('reg-name')) document.getElementById('reg-name').value = '';
+        if (document.getElementById('reg-email')) document.getElementById('reg-email').value = '';
+        if (document.getElementById('reg-password')) document.getElementById('reg-password').value = '';
+    }
+
+    showApp(user) {
+        this.container.classList.add('hidden');
+        this.appContainer.classList.remove('hidden');
+        document.getElementById('theme-toggle').classList.remove('hidden');
+        document.getElementById('mobile-menu-toggle').classList.remove('hidden');
+
+        // Update User Profile
+        if (user) {
+            if (this.userNameEl) this.userNameEl.textContent = user.name;
+            if (this.userAvatarEl) this.userAvatarEl.textContent = user.name.charAt(0).toUpperCase();
+        }
+
+        // Trigger app reload if it exists
+        if (window.app && typeof window.app.renderDashboard === 'function') {
+            window.app.renderDashboard();
+        }
+    }
+
+    showAuth() {
+        this.container.classList.remove('hidden');
+        this.appContainer.classList.add('hidden');
+        document.getElementById('theme-toggle').classList.add('hidden');
+        document.getElementById('mobile-menu-toggle').classList.add('hidden');
+    }
+}
+
+// ===================================
 // Main Application
 // ===================================
 class ProTrackApp {
     constructor() {
+        this.auth = new AuthManager();
         this.storage = new StorageManager();
         this.currentView = 'dashboard';
         this.selectedMonth = Utils.getCurrentMonth();
@@ -379,7 +830,7 @@ class ProTrackApp {
         });
     }
 
-    switchView(view) {
+    async switchView(view) {
         // Hide all views
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
 
@@ -390,19 +841,19 @@ class ProTrackApp {
         // Render view content
         switch (view) {
             case 'dashboard':
-                this.renderDashboard();
+                await this.renderDashboard();
                 break;
             case 'expenses':
-                this.renderExpensesView();
+                await this.renderExpensesView();
                 break;
             case 'time-tracker':
-                this.renderTimeTrackerView();
+                await this.renderTimeTrackerView();
                 break;
             case 'monthly':
-                this.renderMonthlyView();
+                await this.renderMonthlyView();
                 break;
             case 'analytics':
-                this.renderAnalyticsView();
+                await this.renderAnalyticsView();
                 break;
         }
     }
@@ -527,10 +978,10 @@ class ProTrackApp {
                 customInput.value = entry.activity;
             }
 
-            document.getElementById('time-start').value = entry.startTime || '';
-            document.getElementById('time-end').value = entry.endTime || '';
+            document.getElementById('time-start').value = entry.startTime ? Utils.to12Hour(entry.startTime) : '';
+            document.getElementById('time-end').value = entry.endTime ? Utils.to12Hour(entry.endTime) : '';
             document.getElementById('time-notes').value = entry.notes || '';
-            form.dataset.editId = entry.id;
+            form.dataset.editId = entry.id || entry._id;
         } else {
             // Add mode
             form.reset();
@@ -618,7 +1069,7 @@ class ProTrackApp {
         });
     }
 
-    handleExpenseSubmit(form) {
+    async handleExpenseSubmit(form) {
         let category = document.getElementById('expense-category').value;
         if (category === 'Other') {
             category = document.getElementById('expense-category-custom').value;
@@ -634,34 +1085,38 @@ class ProTrackApp {
 
         if (form.dataset.editId) {
             // Update existing expense
-            this.storage.updateExpense(form.dataset.editId, expense);
+            await this.storage.updateExpense(form.dataset.editId, expense);
         } else {
             // Add new expense
-            this.storage.addExpense(expense);
+            await this.storage.addExpense(expense);
         }
 
         this.closeModal(document.getElementById('expense-modal'));
         this.refreshCurrentView();
     }
 
-    handleTimeSubmit(form) {
+    async handleTimeSubmit(form) {
         const startTime = document.getElementById('time-start').value;
         const endTime = document.getElementById('time-end').value;
 
         if (!startTime || !endTime) {
-            alert('Please select both start and end times');
+            console.warn('Please select both start and end times');
             return;
         }
 
-        const start = new Date(`2000-01-01T${startTime}`);
-        const end = new Date(`2000-01-01T${endTime}`);
+        const start24 = Utils.to24Hour(startTime);
+        const end24 = Utils.to24Hour(endTime);
 
-        if (end <= start) {
-            alert('End time must be after start time');
-            return;
+        const start = new Date(`2000-01-01T${start24}`);
+        const end = new Date(`2000-01-01T${end24}`);
+
+        let diffMinutes = Math.round((end - start) / 60000);
+
+        // Handle midnight wrap (e.g., 11 PM to 2 AM)
+        if (diffMinutes <= 0) {
+            diffMinutes += 1440; // Add 24 hours
         }
 
-        const diffMinutes = Math.round((end - start) / 60000);
         const { hours, minutes } = Utils.fromMinutes(diffMinutes);
 
         let activity = document.getElementById('time-activity').value;
@@ -672,62 +1127,48 @@ class ProTrackApp {
         const entry = {
             date: document.getElementById('time-date').value,
             activity: activity,
-            startTime: startTime,
-            endTime: endTime,
+            startTime: start24,
+            endTime: end24,
             hours: hours,
             minutes: minutes,
+            duration: Utils.formatDuration(hours, minutes),
             notes: document.getElementById('time-notes').value
         };
 
         // Validate total time for the day
-        const totalMinutes = this.getTotalMinutesForDate(entry.date, form.dataset.editId);
+        const totalMinutes = await this.getTotalMinutesForDate(entry.date, form.dataset.editId);
         const newMinutes = Utils.toMinutes(entry.hours, entry.minutes);
 
-        if (totalMinutes + newMinutes > 1440) { // 24 hours = 1440 minutes
-            alert('Total time for this day exceeds 24 hours!');
+        // Limit check removed as per user request (no restrictions)
+        /*
+        if (totalMinutes + newMinutes > 1440) { 
+            console.warn('Total time for this day exceeds 24 hours!');
             return;
         }
+        */
 
         if (form.dataset.editId) {
             // Update existing entry
-            this.storage.updateTimeEntry(form.dataset.editId, entry);
+            await this.storage.updateTimeEntry(form.dataset.editId, entry);
         } else {
             // Add new entry
-            this.storage.addTimeEntry(entry);
+            await this.storage.addTimeEntry(entry);
         }
 
         this.closeModal(document.getElementById('time-modal'));
         this.refreshCurrentView();
     }
 
-    validateTimeEntry() {
-        const date = document.getElementById('time-date').value;
-        const startTime = document.getElementById('time-start').value;
-        const endTime = document.getElementById('time-end').value;
-        const form = document.getElementById('time-form');
-
-        let newMinutes = 0;
-        if (startTime && endTime) {
-            const start = new Date(`2000-01-01T${startTime}`);
-            const end = new Date(`2000-01-01T${endTime}`);
-            if (end > start) {
-                newMinutes = Math.round((end - start) / 60000);
-            }
-        }
-
-        const totalMinutes = this.getTotalMinutesForDate(date, form.dataset.editId);
+    async validateTimeEntry() {
+        // Validation removed as per user request (no restrictions)
         const warning = document.getElementById('time-validation-warning');
-
-        if (totalMinutes + newMinutes > 1440) {
-            warning.style.display = 'block';
-        } else {
-            warning.style.display = 'none';
-        }
+        if (warning) warning.style.display = 'none';
     }
 
-    getTotalMinutesForDate(date, excludeId = null) {
-        const entries = this.storage.getTimeEntries()
-            .filter(e => e.date === date && e.id !== excludeId);
+    async getTotalMinutesForDate(date, excludeId = null) {
+        const allEntries = await this.storage.getTimeEntries();
+        const entries = allEntries
+            .filter(e => e.date === date && e._id !== excludeId && e.id !== excludeId);
 
         return entries.reduce((total, entry) => {
             return total + Utils.toMinutes(entry.hours, entry.minutes);
@@ -740,10 +1181,41 @@ class ProTrackApp {
     setupFilters() {
         // Expense filters
         const expenseDateFilter = document.getElementById('expense-date-filter');
+        const expenseMonthFilter = document.getElementById('expense-month-filter');
         const expenseCategoryFilter = document.getElementById('expense-category-filter');
+        const expenseCategoryCustomFilter = document.getElementById('expense-category-custom-filter');
         const expensePaymentFilter = document.getElementById('expense-payment-filter');
+        const expenseSortFilter = document.getElementById('expense-sort-filter');
 
-        [expenseDateFilter, expenseCategoryFilter, expensePaymentFilter].forEach(filter => {
+        if (expenseDateFilter) {
+            expenseDateFilter.addEventListener('change', () => {
+                if (expenseDateFilter.value) document.getElementById('expense-month-filter').value = '';
+                this.renderExpensesView();
+            });
+        }
+        if (expenseMonthFilter) {
+            expenseMonthFilter.addEventListener('change', () => {
+                if (expenseMonthFilter.value) document.getElementById('expense-date-filter').value = '';
+                this.renderExpensesView();
+            });
+        }
+        if (expenseCategoryFilter) {
+            expenseCategoryFilter.addEventListener('change', (e) => {
+                if (e.target.value === 'Other') {
+                    expenseCategoryCustomFilter.style.display = 'block';
+                    expenseCategoryCustomFilter.value = '';
+                } else {
+                    expenseCategoryCustomFilter.style.display = 'none';
+                    expenseCategoryCustomFilter.value = '';
+                }
+                this.renderExpensesView();
+            });
+        }
+        if (expenseCategoryCustomFilter) {
+            expenseCategoryCustomFilter.addEventListener('input', () => this.renderExpensesView());
+        }
+
+        [expensePaymentFilter, expenseSortFilter].forEach(filter => {
             if (filter) {
                 filter.addEventListener('change', () => this.renderExpensesView());
             }
@@ -751,13 +1223,42 @@ class ProTrackApp {
 
         // Time filters
         const timeDateFilter = document.getElementById('time-date-filter');
+        const timeMonthFilter = document.getElementById('time-month-filter');
         const timeActivityFilter = document.getElementById('time-activity-filter');
+        const timeActivityCustomFilter = document.getElementById('time-activity-custom-filter');
+        const timeSortFilter = document.getElementById('time-sort-filter');
 
-        [timeDateFilter, timeActivityFilter].forEach(filter => {
-            if (filter) {
-                filter.addEventListener('change', () => this.renderTimeTrackerView());
-            }
-        });
+        if (timeDateFilter) {
+            timeDateFilter.addEventListener('change', () => {
+                if (timeDateFilter.value) document.getElementById('time-month-filter').value = '';
+                this.renderTimeTrackerView();
+            });
+        }
+        if (timeMonthFilter) {
+            timeMonthFilter.addEventListener('change', () => {
+                if (timeMonthFilter.value) document.getElementById('time-date-filter').value = '';
+                this.renderTimeTrackerView();
+            });
+        }
+        if (timeActivityFilter) {
+            timeActivityFilter.addEventListener('change', (e) => {
+                if (e.target.value === 'Other') {
+                    timeActivityCustomFilter.style.display = 'block';
+                    timeActivityCustomFilter.value = '';
+                } else {
+                    timeActivityCustomFilter.style.display = 'none';
+                    timeActivityCustomFilter.value = '';
+                }
+                this.renderTimeTrackerView();
+            });
+        }
+        if (timeActivityCustomFilter) {
+            timeActivityCustomFilter.addEventListener('input', () => this.renderTimeTrackerView());
+        }
+
+        if (timeSortFilter) {
+            timeSortFilter.addEventListener('change', () => this.renderTimeTrackerView());
+        }
 
         // Export buttons
         document.getElementById('export-expenses-btn').addEventListener('click', () => {
@@ -772,58 +1273,60 @@ class ProTrackApp {
     // ===================================
     // Dashboard Rendering
     // ===================================
-    renderDashboard() {
-        this.updateDashboardStats();
-        this.renderTodayExpenses();
-        this.renderTodayTimeChart();
+    async renderDashboard() {
+        await this.updateDashboardStats();
+        await this.renderTodayExpenses();
+        await this.renderTodayTimeChart();
     }
 
-    updateDashboardStats() {
-        const expenses = this.storage.getExpenses();
-        const timeEntries = this.storage.getTimeEntries();
+    async updateDashboardStats() {
+        const expenses = await this.storage.getExpenses();
+        const timeEntries = await this.storage.getTimeEntries();
         const today = Utils.getTodayDate();
 
         // Today's expenses
-        const todayExpenses = expenses.filter(e => e.date === today);
-        const todayTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const todayExpenses = (expenses || []).filter(e => e.date === today);
+        const todayTotal = todayExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
         document.getElementById('today-expense').textContent = Utils.formatCurrency(todayTotal);
 
         // Yesterday's expenses for comparison
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayDate = yesterday.toISOString().split('T')[0];
-        const yesterdayExpenses = expenses.filter(e => e.date === yesterdayDate);
-        const yesterdayTotal = yesterdayExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const yesterdayExpenses = (expenses || []).filter(e => e.date === yesterdayDate);
+        const yesterdayTotal = yesterdayExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
         const changePercent = yesterdayTotal > 0 ? ((todayTotal - yesterdayTotal) / yesterdayTotal * 100).toFixed(1) : 0;
         const changeElement = document.getElementById('expense-change');
-        if (changePercent > 0) {
-            changeElement.textContent = `+${changePercent}% from yesterday`;
-            changeElement.className = 'stat-change negative';
-        } else if (changePercent < 0) {
-            changeElement.textContent = `${changePercent}% from yesterday`;
-            changeElement.className = 'stat-change positive';
-        } else {
-            changeElement.textContent = 'Same as yesterday';
-            changeElement.className = 'stat-change';
+        if (changeElement) {
+            if (changePercent > 0) {
+                changeElement.textContent = `+${changePercent}% from yesterday`;
+                changeElement.className = 'stat-change negative';
+            } else if (changePercent < 0) {
+                changeElement.textContent = `${changePercent}% from yesterday`;
+                changeElement.className = 'stat-change positive';
+            } else {
+                changeElement.textContent = 'Same as yesterday';
+                changeElement.className = 'stat-change';
+            }
         }
 
         // Monthly expenses
         const currentMonth = Utils.getCurrentMonth();
-        const monthlyExpenses = expenses.filter(e => {
+        const monthlyExpenses = (expenses || []).filter(e => {
             const date = new Date(e.date);
             return date.getMonth() === currentMonth.month && date.getFullYear() === currentMonth.year;
         });
-        const monthlyTotal = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+        const monthlyTotal = monthlyExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
         document.getElementById('month-expense').textContent = Utils.formatCurrency(monthlyTotal);
 
         // Today's hours
-        const todayTime = timeEntries.filter(e => e.date === today);
+        const todayTime = (timeEntries || []).filter(e => e.date === today);
         const todayMinutes = todayTime.reduce((sum, e) => sum + Utils.toMinutes(e.hours, e.minutes), 0);
         const todayHours = Utils.fromMinutes(todayMinutes);
         document.getElementById('today-hours').textContent = Utils.formatDuration(todayHours.hours, todayHours.minutes);
 
-        const remainingMinutes = 1440 - todayMinutes;
+        const remainingMinutes = Math.max(0, 1440 - todayMinutes);
         const remaining = Utils.fromMinutes(remainingMinutes);
         document.getElementById('hours-remaining').textContent = `${Utils.formatDuration(remaining.hours, remaining.minutes)} remaining`;
 
@@ -837,9 +1340,10 @@ class ProTrackApp {
         document.getElementById('productivity-score').textContent = `${productivityScore}%`;
     }
 
-    renderTodayExpenses() {
+    async renderTodayExpenses() {
         const container = document.getElementById('today-expenses-list');
-        const expenses = this.storage.getExpenses()
+        const allExpenses = await this.storage.getExpenses();
+        const expenses = (allExpenses || [])
             .filter(e => Utils.isToday(e.date))
             .sort((a, b) => b.amount - a.amount)
             .slice(0, 5);
@@ -869,10 +1373,10 @@ class ProTrackApp {
         `).join('');
     }
 
-    renderTodayTimeChart() {
+    async renderTodayTimeChart() {
         const container = document.getElementById('today-time-chart');
-        const entries = this.storage.getTimeEntries()
-            .filter(e => Utils.isToday(e.date));
+        const allEntries = await this.storage.getTimeEntries();
+        const entries = allEntries.filter(e => Utils.isToday(e.date));
 
         if (entries.length === 0) {
             container.innerHTML = `
@@ -924,8 +1428,8 @@ class ProTrackApp {
         const budgetInput = document.getElementById('monthly-budget-input');
 
         if (editBtn) {
-            editBtn.addEventListener('click', () => {
-                const currentBudget = this.storage.getMonthlyBudget();
+            editBtn.addEventListener('click', async () => {
+                const currentBudget = await this.storage.getMonthlyBudget();
                 budgetInput.value = currentBudget || '';
                 inputContainer.style.display = 'block';
                 // editBtn.style.display = 'none';
@@ -940,23 +1444,23 @@ class ProTrackApp {
         }
 
         if (saveBtn) {
-            saveBtn.addEventListener('click', () => {
+            saveBtn.addEventListener('click', async () => {
                 const amount = parseFloat(budgetInput.value);
                 if (isNaN(amount) || amount < 0) {
-                    alert('Please enter a valid amount');
+                    console.error('Please enter a valid amount');
                     return;
                 }
-                this.storage.saveMonthlyBudget(amount);
+                await this.storage.saveMonthlyBudget(amount);
                 inputContainer.style.display = 'none';
                 // editBtn.style.display = 'block';
-                this.renderBudgetInfo();
+                await this.renderBudgetInfo();
             });
         }
     }
 
-    renderBudgetInfo() {
-        const budget = this.storage.getMonthlyBudget();
-        const expenses = this.storage.getExpenses();
+    async renderBudgetInfo() {
+        const budget = await this.storage.getMonthlyBudget();
+        const expenses = await this.storage.getExpenses();
         const currentMonth = Utils.getCurrentMonth();
 
         // Filter expenses for current month
@@ -1005,28 +1509,58 @@ class ProTrackApp {
     // ===================================
     // Expenses View
     // ===================================
-    renderExpensesView() {
-        this.renderBudgetInfo();
+    async renderExpensesView() {
+        await this.renderBudgetInfo();
         const container = document.getElementById('expenses-table-container');
-        let expenses = this.storage.getExpenses();
+        let expenses = await this.storage.getExpenses();
 
         // Apply filters
         const dateFilter = document.getElementById('expense-date-filter').value;
+        const monthFilter = document.getElementById('expense-month-filter').value;
         const categoryFilter = document.getElementById('expense-category-filter').value;
+        const categoryCustomFilter = document.getElementById('expense-category-custom-filter').value;
         const paymentFilter = document.getElementById('expense-payment-filter').value;
+        const sortFilter = document.getElementById('expense-sort-filter').value;
 
         if (dateFilter) {
             expenses = expenses.filter(e => e.date === dateFilter);
+        } else if (monthFilter) {
+            expenses = expenses.filter(e => e.date.startsWith(monthFilter));
         }
+
         if (categoryFilter) {
-            expenses = expenses.filter(e => e.category === categoryFilter);
+            if (categoryFilter === 'Other') {
+                const standardCategories = ['Food', 'Travel', 'Rent', 'Bills', 'Shopping', 'Entertainment', 'Medical'];
+                if (categoryCustomFilter.trim()) {
+                    expenses = expenses.filter(e => e.category.toLowerCase().includes(categoryCustomFilter.toLowerCase()));
+                } else {
+                    expenses = expenses.filter(e => !standardCategories.includes(e.category));
+                }
+            } else {
+                expenses = expenses.filter(e => e.category === categoryFilter);
+            }
         }
         if (paymentFilter) {
             expenses = expenses.filter(e => e.paymentMode === paymentFilter);
         }
 
-        // Sort by date (newest first)
-        expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+        // Sort results
+        expenses.sort((a, b) => {
+            switch (sortFilter) {
+                case 'date-desc':
+                    return new Date(b.date) - new Date(a.date);
+                case 'date-asc':
+                    return new Date(a.date) - new Date(b.date);
+                case 'amount-desc':
+                    return b.amount - a.amount;
+                case 'amount-asc':
+                    return a.amount - b.amount;
+                case 'category':
+                    return a.category.localeCompare(b.category);
+                default:
+                    return new Date(b.date) - new Date(a.date);
+            }
+        });
 
         if (expenses.length === 0) {
             container.innerHTML = `
@@ -1072,8 +1606,8 @@ class ProTrackApp {
                             <td data-label="Notes">${expense.notes || '-'}</td>
                             <td data-label="Actions">
                                 <div class="table-actions">
-                                    <button class="btn-edit" onclick="app.editExpense('${expense.id}')">Edit</button>
-                                    <button class="btn-delete" onclick="app.deleteExpense('${expense.id}')">Delete</button>
+                                    <button class="btn-edit" onclick="app.editExpense('${expense._id || expense.id}')">Edit</button>
+                                    <button class="btn-delete" onclick="app.deleteExpense('${expense._id || expense.id}')">Delete</button>
                                 </div>
                             </td>
                         </tr>
@@ -1083,22 +1617,23 @@ class ProTrackApp {
         `;
     }
 
-    editExpense(id) {
-        const expense = this.storage.getExpenses().find(e => e.id === id);
+    async editExpense(id) {
+        const expenses = await this.storage.getExpenses();
+        const expense = expenses.find(e => e._id === id || e.id === id);
         if (expense) {
             this.openExpenseModal(expense);
         }
     }
 
-    deleteExpense(id) {
+    async deleteExpense(id) {
         if (confirm('Are you sure you want to delete this expense?')) {
-            this.storage.deleteExpense(id);
+            await this.storage.deleteExpense(id);
             this.refreshCurrentView();
         }
     }
 
-    exportExpenses() {
-        const expenses = this.storage.getExpenses();
+    async exportExpenses() {
+        const expenses = await this.storage.getExpenses();
         const data = expenses.map(e => ({
             Date: e.date,
             Category: e.category,
@@ -1112,36 +1647,82 @@ class ProTrackApp {
     // ===================================
     // Time Tracker View
     // ===================================
-    renderTimeTrackerView() {
+    async renderTimeTrackerView() {
         const container = document.getElementById('time-table-container');
-        let entries = this.storage.getTimeEntries();
+        let entries = await this.storage.getTimeEntries();
 
         // Apply filters
         const dateFilter = document.getElementById('time-date-filter').value;
+        const monthFilter = document.getElementById('time-month-filter').value;
         const activityFilter = document.getElementById('time-activity-filter').value;
+        const activityCustomFilter = document.getElementById('time-activity-custom-filter').value;
+        const sortFilter = document.getElementById('time-sort-filter').value;
 
         if (dateFilter) {
             entries = entries.filter(e => e.date === dateFilter);
+        } else if (monthFilter) {
+            entries = entries.filter(e => e.date.startsWith(monthFilter));
         }
+
         if (activityFilter) {
-            entries = entries.filter(e => e.activity === activityFilter);
+            if (activityFilter === 'Other') {
+                const standardActivities = ['Office Work', 'Commute', 'Meetings', 'Breaks', 'Personal Time', 'Sleep', 'Learning'];
+                if (activityCustomFilter.trim()) {
+                    entries = entries.filter(e => e.activity.toLowerCase().includes(activityCustomFilter.toLowerCase()));
+                } else {
+                    entries = entries.filter(e => !standardActivities.includes(e.activity));
+                }
+            } else {
+                entries = entries.filter(e => e.activity === activityFilter);
+            }
         }
 
-        // Sort by date (newest first)
-        entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+        // Sort results
+        entries.sort((a, b) => {
+            switch (sortFilter) {
+                case 'date-desc':
+                    return new Date(b.date) - new Date(a.date);
+                case 'date-asc':
+                    return new Date(a.date) - new Date(b.date);
+                case 'duration-desc':
+                    return Utils.toMinutes(b.hours, b.minutes) - Utils.toMinutes(a.hours, a.minutes);
+                case 'duration-asc':
+                    return Utils.toMinutes(a.hours, a.minutes) - Utils.toMinutes(b.hours, b.minutes);
+                default:
+                    return new Date(b.date) - new Date(a.date);
+            }
+        });
 
-        // Update time summary
-        const selectedDate = dateFilter || Utils.getTodayDate();
-        const dayEntries = this.storage.getTimeEntries().filter(e => e.date === selectedDate);
-        const totalMinutes = dayEntries.reduce((sum, e) => sum + Utils.toMinutes(e.hours, e.minutes), 0);
-        const total = Utils.fromMinutes(totalMinutes);
-        const remaining = Utils.fromMinutes(1440 - totalMinutes);
+        // Update time summary card (quota based on a 24h day)
+        const relevantDate = dateFilter || Utils.getTodayDate();
+        const dailyEntries = (await this.storage.getTimeEntries()).filter(e => e.date === relevantDate);
+        const dailyMinutes = dailyEntries.reduce((sum, e) => sum + Utils.toMinutes(e.hours, e.minutes), 0);
 
+        const total = Utils.fromMinutes(dailyMinutes);
+        const remaining = Utils.fromMinutes(Math.max(0, 1440 - dailyMinutes));
+        const progressPercent = (Math.min(1440, dailyMinutes) / 1440 * 100).toFixed(1);
+
+        const summaryLabel = dateFilter ? `Total Tracked (${Utils.formatDate(dateFilter)}):` : "Total Tracked (Today):";
+        const remainingLabel = dateFilter ? "Hours Left in Day:" : "Hours Left Today:";
+
+        document.getElementById('total-tracked-time').parentElement.querySelector('.label').textContent = summaryLabel;
         document.getElementById('total-tracked-time').textContent = Utils.formatDuration(total.hours, total.minutes);
-        document.getElementById('remaining-time').textContent = Utils.formatDuration(remaining.hours, remaining.minutes);
 
-        const progressPercent = (totalMinutes / 1440 * 100).toFixed(1);
+        document.getElementById('remaining-time').parentElement.style.display = 'flex';
+        document.getElementById('remaining-time').textContent = Utils.formatDuration(remaining.hours, remaining.minutes);
+        document.getElementById('remaining-time').parentElement.querySelector('.label').textContent = remainingLabel;
+
         document.getElementById('time-progress-fill').style.width = `${progressPercent}%`;
+
+        // If a Month Filter is active, maybe add a small note or total for the month elsewhere, 
+        // but keep the card focused on "Day Quota" as requested by "Hours Left".
+        if (monthFilter && !dateFilter) {
+            const monthlyMinutes = entries.reduce((sum, e) => sum + Utils.toMinutes(e.hours, e.minutes), 0);
+            const monthlyTotal = Utils.fromMinutes(monthlyMinutes);
+            // Optionally update the label to mention month
+            document.getElementById('total-tracked-time').parentElement.querySelector('.label').innerHTML =
+                `Total Tracked Today <span style="font-size: 0.8em; opacity: 0.7;">(Filtered Month: ${Utils.formatDuration(monthlyTotal.hours, monthlyTotal.minutes)})</span>:`;
+        }
 
         if (entries.length === 0) {
             container.innerHTML = `
@@ -1162,6 +1743,7 @@ class ProTrackApp {
                     <tr>
                         <th>Date</th>
                         <th>Activity</th>
+                        <th>Time Range</th>
                         <th>Duration</th>
                         <th>Notes</th>
                         <th>Actions</th>
@@ -1176,12 +1758,13 @@ class ProTrackApp {
                                     ${Utils.getActivityIcon(entry.activity)} ${entry.activity}
                                 </span>
                             </td>
+                            <td data-label="Time Range">${Utils.to12Hour(entry.startTime)} - ${Utils.to12Hour(entry.endTime)}</td>
                             <td data-label="Duration"><strong>${Utils.formatDuration(entry.hours, entry.minutes)}</strong></td>
                             <td data-label="Notes">${entry.notes || '-'}</td>
                             <td data-label="Actions">
                                 <div class="table-actions">
-                                    <button class="btn-edit" onclick="app.editTimeEntry('${entry.id}')">Edit</button>
-                                    <button class="btn-delete" onclick="app.deleteTimeEntry('${entry.id}')">Delete</button>
+                                    <button class="btn-edit" onclick="app.editTimeEntry('${entry._id || entry.id}')">Edit</button>
+                                    <button class="btn-delete" onclick="app.deleteTimeEntry('${entry._id || entry.id}')">Delete</button>
                                 </div>
                             </td>
                         </tr>
@@ -1191,22 +1774,23 @@ class ProTrackApp {
         `;
     }
 
-    editTimeEntry(id) {
-        const entry = this.storage.getTimeEntries().find(e => e.id === id);
+    async editTimeEntry(id) {
+        const entries = await this.storage.getTimeEntries();
+        const entry = entries.find(e => e._id === id || e.id === id);
         if (entry) {
             this.openTimeModal(entry);
         }
     }
 
-    deleteTimeEntry(id) {
+    async deleteTimeEntry(id) {
         if (confirm('Are you sure you want to delete this time entry?')) {
-            this.storage.deleteTimeEntry(id);
+            await this.storage.deleteTimeEntry(id);
             this.refreshCurrentView();
         }
     }
 
-    exportTimeEntries() {
-        const entries = this.storage.getTimeEntries();
+    async exportTimeEntries() {
+        const entries = await this.storage.getTimeEntries();
         const data = entries.map(e => ({
             Date: e.date,
             Activity: e.activity,
@@ -1220,22 +1804,24 @@ class ProTrackApp {
     // ===================================
     // Monthly View
     // ===================================
-    renderMonthlyView() {
+    async renderMonthlyView() {
         document.getElementById('selected-month').textContent =
             Utils.formatMonth(this.selectedMonth.month, this.selectedMonth.year);
 
-        this.updateMonthlyStats();
-        this.renderMonthlyCharts();
+        await this.updateMonthlyStats();
+        await this.renderMonthlyCharts();
     }
 
-    updateMonthlyStats() {
-        const expenses = this.storage.getExpenses().filter(e => {
+    async updateMonthlyStats() {
+        const allExpenses = await this.storage.getExpenses();
+        const expenses = allExpenses.filter(e => {
             const date = new Date(e.date);
             return date.getMonth() === this.selectedMonth.month &&
                 date.getFullYear() === this.selectedMonth.year;
         });
 
-        const timeEntries = this.storage.getTimeEntries().filter(e => {
+        const allEntries = await this.storage.getTimeEntries();
+        const timeEntries = allEntries.filter(e => {
             const date = new Date(e.date);
             return date.getMonth() === this.selectedMonth.month &&
                 date.getFullYear() === this.selectedMonth.year;
@@ -1268,13 +1854,13 @@ class ProTrackApp {
         document.getElementById('monthly-work-ratio').textContent = `Work vs Personal: ${workHours}h : ${personalHours}h`;
     }
 
-    renderMonthlyCharts() {
-        this.renderExpenseCategoryChart();
-        this.renderTimeAllocationChart();
-        this.renderDailyExpenseChart();
+    async renderMonthlyCharts() {
+        await this.renderExpenseCategoryChart();
+        await this.renderTimeAllocationChart();
+        await this.renderDailyExpenseChart();
     }
 
-    renderExpenseCategoryChart() {
+    async renderExpenseCategoryChart() {
         const canvas = document.getElementById('expense-category-chart');
         const ctx = canvas.getContext('2d');
 
@@ -1283,7 +1869,8 @@ class ProTrackApp {
             this.charts.expenseCategory.destroy();
         }
 
-        const expenses = this.storage.getExpenses().filter(e => {
+        const allExpenses = await this.storage.getExpenses();
+        const expenses = allExpenses.filter(e => {
             const date = new Date(e.date);
             return date.getMonth() === this.selectedMonth.month &&
                 date.getFullYear() === this.selectedMonth.year;
@@ -1335,7 +1922,7 @@ class ProTrackApp {
         });
     }
 
-    renderTimeAllocationChart() {
+    async renderTimeAllocationChart() {
         const canvas = document.getElementById('time-allocation-chart');
         const ctx = canvas.getContext('2d');
 
@@ -1344,7 +1931,8 @@ class ProTrackApp {
             this.charts.timeAllocation.destroy();
         }
 
-        const entries = this.storage.getTimeEntries().filter(e => {
+        const allEntries = await this.storage.getTimeEntries();
+        const entries = allEntries.filter(e => {
             const date = new Date(e.date);
             return date.getMonth() === this.selectedMonth.month &&
                 date.getFullYear() === this.selectedMonth.year;
@@ -1399,7 +1987,7 @@ class ProTrackApp {
         });
     }
 
-    renderDailyExpenseChart() {
+    async renderDailyExpenseChart() {
         const canvas = document.getElementById('daily-expense-chart');
         const ctx = canvas.getContext('2d');
 
@@ -1408,7 +1996,8 @@ class ProTrackApp {
             this.charts.dailyExpense.destroy();
         }
 
-        const expenses = this.storage.getExpenses().filter(e => {
+        const allExpenses = await this.storage.getExpenses();
+        const expenses = allExpenses.filter(e => {
             const date = new Date(e.date);
             return date.getMonth() === this.selectedMonth.month &&
                 date.getFullYear() === this.selectedMonth.year;
@@ -1476,16 +2065,16 @@ class ProTrackApp {
     // ===================================
     // Analytics View
     // ===================================
-    renderAnalyticsView() {
-        this.renderTopCategories();
-        this.renderPaymentModeChart();
-        this.renderProductivityInsights();
-        this.renderWeeklyComparison();
+    async renderAnalyticsView() {
+        await this.renderTopCategories();
+        await this.renderPaymentModeChart();
+        await this.renderProductivityInsights();
+        await this.renderWeeklyComparison();
     }
 
-    renderTopCategories() {
+    async renderTopCategories() {
         const container = document.getElementById('top-categories-list');
-        const expenses = this.storage.getExpenses();
+        const expenses = await this.storage.getExpenses();
 
         // Group by category
         const categoryData = {};
@@ -1513,7 +2102,7 @@ class ProTrackApp {
         }).join('');
     }
 
-    renderPaymentModeChart() {
+    async renderPaymentModeChart() {
         const canvas = document.getElementById('payment-mode-chart');
         const ctx = canvas.getContext('2d');
 
@@ -1522,7 +2111,7 @@ class ProTrackApp {
             this.charts.paymentMode.destroy();
         }
 
-        const expenses = this.storage.getExpenses();
+        const expenses = await this.storage.getExpenses();
 
         // Group by payment mode
         const paymentData = {};
@@ -1574,9 +2163,9 @@ class ProTrackApp {
         });
     }
 
-    renderProductivityInsights() {
+    async renderProductivityInsights() {
         const container = document.getElementById('productivity-insights');
-        const entries = this.storage.getTimeEntries();
+        const entries = await this.storage.getTimeEntries();
 
         const workActivities = ['Office Work', 'Meetings', 'Learning'];
         const workMinutes = entries
@@ -1614,7 +2203,7 @@ class ProTrackApp {
         `;
     }
 
-    renderWeeklyComparison() {
+    async renderWeeklyComparison() {
         const canvas = document.getElementById('weekly-comparison-chart');
         const ctx = canvas.getContext('2d');
 
@@ -1623,7 +2212,7 @@ class ProTrackApp {
             this.charts.weeklyComparison.destroy();
         }
 
-        const expenses = this.storage.getExpenses();
+        const expenses = await this.storage.getExpenses();
 
         // Get last 7 days
         const last7Days = [];

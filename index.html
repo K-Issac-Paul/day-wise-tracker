@@ -13,11 +13,224 @@
 		href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap"
 		rel="stylesheet">
 	<link rel="stylesheet" href="index.css">
+	<link rel="stylesheet" href="timepicker.css">
 </head>
 
 <body>
+	<!-- Auth Container -->
+	<!-- Auth Container -->
+	<div id="auth-container" class="auth-container">
+		<div class="auth-card">
+			<div class="auth-layout">
+				<!-- Left Sidebar (Image/Brand) -->
+				<div class="auth-sidebar">
+					<div class="auth-sidebar-content">
+						<div class="auth-logo">
+							<div class="auth-logo-icon">
+								<svg width="64" height="64" viewBox="0 0 32 32" fill="none">
+									<rect width="32" height="32" rx="8" fill="white" fill-opacity="0.2" />
+									<path d="M16 8L22 12V20L16 24L10 20V12L16 8Z" stroke="white" stroke-width="2"
+										stroke-linejoin="round" />
+								</svg>
+							</div>
+							<h1>ProTrack</h1>
+						</div>
+						<div class="sidebar-text">
+							<h2>Welcome Back!</h2>
+							<p>Track your expenses and time like a pro.</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Right Side (Forms) -->
+				<div class="auth-main">
+					<!-- Login Form -->
+					<form id="login-form" class="auth-form active">
+						<div class="auth-header">
+							<h2>Sign In</h2>
+							<p>Enter your details to access your account</p>
+						</div>
+
+						<div class="form-group">
+							<label for="login-email">Email or Username</label>
+							<input type="text" id="login-email" class="input-field"
+								placeholder="john@example.com or Username" required>
+						</div>
+						<div class="form-group">
+							<label for="login-password">Password</label>
+							<div class="password-wrapper">
+								<input type="password" id="login-password" class="input-field" placeholder="••••••••"
+									required>
+								<button type="button" class="password-toggle" id="toggle-password"
+									aria-label="Toggle password visibility">
+									<svg class="eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none"
+										stroke="currentColor" stroke-width="2">
+										<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+										<circle cx="12" cy="12" r="3"></circle>
+									</svg>
+									<svg class="eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none"
+										stroke="currentColor" stroke-width="2" style="display: none;">
+										<path
+											d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
+										</path>
+										<line x1="1" y1="1" x2="23" y2="23"></line>
+									</svg>
+								</button>
+							</div>
+						</div>
+						<div class="auth-options"
+							style="margin-top: -10px; margin-bottom: 20px; display: flex; justify-content: flex-end;">
+							<a href="#" id="show-forgot-password"
+								style="font-size: 13px; color: var(--primary-color);">Forgot Password?</a>
+						</div>
+
+						<div id="login-error" class="auth-error-message"></div>
+
+						<button type="submit" class="btn-primary full-width">Sign In</button>
+
+						<div class="auth-divider">
+							<span>OR CONTINUE WITH</span>
+						</div>
+
+						<div class="social-login">
+							<button type="button" class="btn-social" id="login-google">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+									xmlns="http://www.w3.org/2000/svg">
+									<path
+										d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+										fill="#4285F4" />
+									<path
+										d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+										fill="#34A853" />
+									<path
+										d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z"
+										fill="#FBBC05" />
+									<path
+										d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+										fill="#EA4335" />
+								</svg>
+								Google
+							</button>
+						</div>
+
+						<p class="auth-footer">Don't have an account? <a href="#" id="show-register">Sign up</a></p>
+					</form>
+
+					<!-- Register Form -->
+					<form id="register-form" class="auth-form hidden">
+						<div class="auth-header">
+							<h2>Create Account</h2>
+							<p>Start tracking your life like a pro</p>
+						</div>
+
+						<div class="form-group">
+							<label for="reg-name">Full Name</label>
+							<input type="text" id="reg-name" class="input-field" placeholder="John Doe" required>
+						</div>
+						<div class="form-group">
+							<label for="reg-email">Email Address</label>
+							<input type="email" id="reg-email" class="input-field" placeholder="john@example.com"
+								required>
+						</div>
+						<div class="form-group">
+							<label for="reg-password">Password</label>
+							<div class="password-wrapper">
+								<input type="password" id="reg-password" class="input-field" placeholder="••••••••"
+									required>
+								<button type="button" class="password-toggle" id="toggle-reg-password"
+									aria-label="Toggle password visibility">
+									<svg class="eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none"
+										stroke="currentColor" stroke-width="2">
+										<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+										<circle cx="12" cy="12" r="3"></circle>
+									</svg>
+									<svg class="eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none"
+										stroke="currentColor" stroke-width="2" style="display: none;">
+										<path
+											d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24">
+										</path>
+										<line x1="1" y1="1" x2="23" y2="23"></line>
+									</svg>
+								</button>
+							</div>
+						</div>
+
+						<button type="submit" class="btn-primary full-width">Create Account</button>
+
+						<div class="auth-divider">
+							<span>OR SIGN UP WITH</span>
+						</div>
+
+						<div class="social-login">
+							<button type="button" class="btn-social" id="reg-google">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+									xmlns="http://www.w3.org/2000/svg">
+									<path
+										d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+										fill="#4285F4" />
+									<path
+										d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+										fill="#34A853" />
+									<path
+										d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z"
+										fill="#FBBC05" />
+									<path
+										d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+										fill="#EA4335" />
+								</svg>
+								Google
+							</button>
+						</div>
+
+						<p class="auth-footer">Already have an account? <a href="#" id="show-login">Sign in</a></p>
+					</form>
+
+					<!-- Reset Password Form -->
+					<form id="reset-password-form" class="auth-form hidden">
+						<div class="auth-header">
+							<h2>Reset Password</h2>
+							<p>Enter your email to change your password</p>
+						</div>
+
+						<div class="form-group">
+							<label for="reset-email">Email Address</label>
+							<input type="email" id="reset-email" class="input-field" placeholder="john@example.com"
+								required>
+						</div>
+						<div class="form-group">
+							<label for="reset-new-password">New Password</label>
+							<div class="password-wrapper">
+								<input type="password" id="reset-new-password" class="input-field"
+									placeholder="••••••••" required>
+								<button type="button" class="password-toggle" id="toggle-reset-password">
+									<svg class="eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none"
+										stroke="currentColor" stroke-width="2">
+										<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+										<circle cx="12" cy="12" r="3"></circle>
+									</svg>
+								</button>
+							</div>
+						</div>
+
+						<button type="submit" class="btn-primary full-width">Update Password</button>
+
+						<p class="auth-footer">Remembered your password? <a href="#" id="back-to-login">Back to Sign
+								in</a></p>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- OAuth Mock Container (Simulates Provider Login Page) -->
+	<div id="oauth-mock-view" class="oauth-view hidden">
+		<div class="oauth-card">
+			<div id="oauth-content"></div>
+		</div>
+	</div>
+	</div>
 	<!-- Theme Toggle -->
-	<button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode">
+	<button id="theme-toggle" class="theme-toggle hidden" aria-label="Toggle dark mode">
 		<svg class="sun-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
 			stroke-width="2">
 			<circle cx="12" cy="12" r="5"></circle>
@@ -37,7 +250,7 @@
 	</button>
 
 	<!-- Mobile Menu Toggle -->
-	<button id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Toggle mobile menu">
+	<button id="mobile-menu-toggle" class="mobile-menu-toggle hidden" aria-label="Toggle mobile menu">
 		<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 			<line x1="3" y1="12" x2="21" y2="12"></line>
 			<line x1="3" y1="6" x2="21" y2="6"></line>
@@ -49,7 +262,7 @@
 	<div id="mobile-overlay" class="mobile-overlay"></div>
 
 	<!-- Main Container -->
-	<div class="container">
+	<div id="app-container" class="container hidden">
 		<!-- Sidebar Navigation -->
 		<aside class="sidebar">
 			<div class="logo">
@@ -115,6 +328,20 @@
 					<span>Analytics</span>
 				</button>
 			</nav>
+
+			<div class="sidebar-footer">
+				<div class="user-profile">
+					<div class="user-avatar-container">
+						<div class="user-avatar" id="user-avatar-initial">U</div>
+					</div>
+					<div class="user-info">
+						<p class="user-name" id="display-user-name">User Name</p>
+						<button id="logout-btn" class="logout-link">
+							Sign Out
+						</button>
+					</div>
+				</div>
+			</div>
 		</aside>
 
 		<!-- Main Content -->
@@ -252,21 +479,22 @@
 								<p class="subtitle" style="margin-bottom: 0;">Manage your monthly spending limit</p>
 							</div>
 							<button id="edit-budget-btn" class="btn-icon" title="Edit Budget">
-								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
 									stroke-width="2">
-									<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-									<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+									<line x1="12" y1="5" x2="12" y2="19"></line>
+									<line x1="5" y1="12" x2="19" y2="12"></line>
 								</svg>
 							</button>
 						</div>
 
-						<div id="budget-input-container" style="display: none; margin-bottom: 16px;">
-							<div style="display: flex; gap: 12px; align-items: center;">
+						<div id="budget-input-container" style="display: none; margin-bottom: 24px;">
+							<div class="budget-input-wrapper">
 								<input type="number" id="monthly-budget-input"
-									placeholder="Enter Monthly Income / Pocket Money" class="input-field"
-									style="flex: 1;">
-								<button id="save-budget-btn" class="btn-primary">Save</button>
-								<button id="cancel-budget-btn" class="btn-secondary">Cancel</button>
+									placeholder="Enter Monthly Income / Pocket Money" class="input-field">
+								<div class="budget-input-actions">
+									<button id="save-budget-btn" class="btn-primary">Save</button>
+									<button id="cancel-budget-btn" class="btn-secondary">Cancel</button>
+								</div>
 							</div>
 						</div>
 
@@ -297,7 +525,8 @@
 				</div>
 
 				<div class="filters-bar">
-					<input type="date" id="expense-date-filter" class="input-field">
+					<input type="date" id="expense-date-filter" class="input-field" title="Filter by Date">
+					<input type="month" id="expense-month-filter" class="input-field" title="Filter by Month">
 					<select id="expense-category-filter" class="select-field">
 						<option value="">All Categories</option>
 						<option value="Food">Food</option>
@@ -309,12 +538,21 @@
 						<option value="Medical">Medical</option>
 						<option value="Other">Other</option>
 					</select>
+					<input type="text" id="expense-category-custom-filter" class="input-field"
+						placeholder="Enter Category Name" style="display: none;">
 					<select id="expense-payment-filter" class="select-field">
 						<option value="">All Payment Modes</option>
 						<option value="Cash">Cash</option>
 						<option value="UPI">UPI</option>
 						<option value="Card">Card</option>
 						<option value="Bank Transfer">Bank Transfer</option>
+					</select>
+					<select id="expense-sort-filter" class="select-field">
+						<option value="date-desc">Newest First</option>
+						<option value="date-asc">Oldest First</option>
+						<option value="amount-desc">Amount (High to Low)</option>
+						<option value="amount-asc">Amount (Low to High)</option>
+						<option value="category">Category</option>
 					</select>
 					<button class="btn-secondary" id="export-expenses-btn">
 						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -352,7 +590,8 @@
 				</header>
 
 				<div class="filters-bar">
-					<input type="date" id="time-date-filter" class="input-field">
+					<input type="date" id="time-date-filter" class="input-field" title="Filter by Date">
+					<input type="month" id="time-month-filter" class="input-field" title="Filter by Month">
 					<select id="time-activity-filter" class="select-field">
 						<option value="">All Activities</option>
 						<option value="Office Work">Office Work</option>
@@ -363,6 +602,14 @@
 						<option value="Sleep">Sleep</option>
 						<option value="Learning">Learning / Upskilling</option>
 						<option value="Other">Other</option>
+					</select>
+					<input type="text" id="time-activity-custom-filter" class="input-field"
+						placeholder="Enter Activity Name" style="display: none;">
+					<select id="time-sort-filter" class="select-field">
+						<option value="date-desc">Newest First</option>
+						<option value="date-asc">Oldest First</option>
+						<option value="duration-desc">Duration (Longest First)</option>
+						<option value="duration-asc">Duration (Shortest First)</option>
 					</select>
 					<button class="btn-secondary" id="export-time-btn">
 						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -608,13 +855,11 @@
 				<div class="form-row">
 					<div class="form-group">
 						<label for="time-start">From Time</label>
-						<input type="text" id="time-start" class="input-field time-input" placeholder="--:--" readonly
-							required>
+						<input type="text" id="time-start" class="input-field time-input" placeholder="--:--" required>
 					</div>
 					<div class="form-group">
 						<label for="time-end">To Time</label>
-						<input type="text" id="time-end" class="input-field time-input" placeholder="--:--" readonly
-							required>
+						<input type="text" id="time-end" class="input-field time-input" placeholder="--:--" required>
 					</div>
 				</div>
 				<div class="form-group">

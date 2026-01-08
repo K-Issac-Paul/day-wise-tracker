@@ -1,0 +1,166 @@
+/* =================================== 
+   Custom Time Picker - Premium Feel
+   =================================== */
+.custom-time-picker {
+	position: absolute;
+	background: var(--bg-secondary);
+	border: 1px solid var(--border-color);
+	border-radius: var(--radius-xl);
+	box-shadow: var(--shadow-xl);
+	z-index: 10000;
+	width: 280px;
+	display: none;
+	animation: pickerFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+	overflow: hidden;
+	font-family: var(--font-display);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+}
+
+@keyframes pickerFadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(10px) scale(0.95);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+.custom-time-picker.active {
+	display: block;
+}
+
+.picker-header {
+	padding: 16px;
+	background: var(--bg-tertiary);
+	border-bottom: 1px solid var(--border-color);
+	text-align: center;
+	font-weight: 700;
+	color: var(--text-primary);
+	font-size: 16px;
+}
+
+.picker-body {
+	display: flex;
+	height: 220px;
+	align-items: center;
+	justify-content: center;
+	padding: 10px;
+	gap: 4px;
+	position: relative;
+}
+
+/* Center selection indicator */
+.picker-body::after {
+	content: '';
+	position: absolute;
+	left: 10px;
+	right: 10px;
+	top: 50%;
+	transform: translateY(-50%);
+	height: 44px;
+	background: var(--primary-gradient);
+	opacity: 0.1;
+	border-radius: var(--radius-md);
+	pointer-events: none;
+	z-index: 0;
+}
+
+.picker-column {
+	height: 100%;
+	width: 70px;
+	overflow-y: auto;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0;
+	scroll-behavior: smooth;
+	position: relative;
+	padding: 88px 0;
+	/* (220/2) - (44/2) */
+	z-index: 1;
+}
+
+.picker-column::-webkit-scrollbar {
+	display: none;
+}
+
+.picker-item {
+	font-size: 18px;
+	height: 44px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	border-radius: var(--radius-md);
+	color: var(--text-secondary);
+	transition: all 0.2s;
+	width: 100%;
+	text-align: center;
+	flex-shrink: 0;
+	font-weight: 500;
+}
+
+.picker-item:hover {
+	color: var(--primary-color);
+	background: rgba(102, 126, 234, 0.05);
+}
+
+.picker-item.selected {
+	color: var(--primary-color);
+	font-size: 22px;
+	font-weight: 700;
+	transform: scale(1.1);
+}
+
+.ampm-column {
+	width: 60px;
+}
+
+.picker-footer {
+	display: flex;
+	justify-content: space-between;
+	padding: 16px;
+	border-top: 1px solid var(--border-color);
+	gap: 12px;
+	background: var(--bg-tertiary);
+}
+
+.picker-btn {
+	padding: 10px 16px;
+	border-radius: var(--radius-md);
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	border: none;
+	flex: 1;
+	transition: all var(--transition-fast);
+}
+
+.picker-btn.secondary {
+	background: var(--bg-secondary);
+	color: var(--text-secondary);
+	border: 1px solid var(--border-color);
+}
+
+.picker-btn.secondary:hover {
+	background: var(--danger-color);
+	color: white;
+	border-color: var(--danger-color);
+}
+
+.picker-btn.primary {
+	background: var(--primary-gradient);
+	color: white;
+	box-shadow: var(--shadow-sm);
+}
+
+.picker-btn.primary:hover {
+	transform: translateY(-2px);
+	box-shadow: var(--shadow-md);
+}
