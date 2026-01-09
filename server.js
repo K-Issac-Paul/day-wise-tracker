@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-	origin: ['http://localhost:5000', 'http://127.0.0.1:5000'],
+	origin: [process.env.BASE_URL || 'http://localhost:5000'],
 	credentials: true
 }));
 app.use(bodyParser.json());
@@ -122,7 +122,7 @@ passport.use(
 		{
 			clientID: process.env.GOOGLE_CLIENT_ID?.trim(),
 			clientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim(),
-			callbackURL: "http://127.0.0.1:5000/api/auth/google/callback"
+			callbackURL: `${process.env.BASE_URL}/api/auth/google/callback`
 		},
 		async (accessToken, refreshToken, profile, done) => {
 			console.log('Google Auth profile received:', profile.id);
@@ -186,7 +186,7 @@ app.get('/api/auth/google/callback',
 			}
 			req.logIn(user, (err) => {
 				if (err) return next(err);
-				return res.redirect('http://127.0.0.1:5000');
+				return res.redirect(process.env.BASE_URL || 'http://localhost:5000');
 			});
 		})(req, res, next);
 	}
@@ -206,11 +206,11 @@ app.get('/api/auth/logout', (req, res, next) => {
 	if (typeof req.logout === 'function') {
 		req.logout((err) => {
 			if (err) return next(err);
-			const frontendUrl = 'http://127.0.0.1:5000';
+			const frontendUrl = process.env.BASE_URL || 'http://localhost:5000';
 			res.redirect(frontendUrl);
 		});
 	} else {
-		res.redirect('http://127.0.0.1:5000');
+		res.redirect(process.env.BASE_URL || 'http://localhost:5000');
 	}
 });
 

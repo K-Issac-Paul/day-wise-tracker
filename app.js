@@ -3,7 +3,7 @@
 // ===================================
 class StorageManager {
     constructor() {
-        this.BASE_URL = 'http://127.0.0.1:5000/api';
+        this.BASE_URL = `${window.location.origin}/api`;
         this.userId = this.getUserId();
         this.THEME_KEY = 'protrack_theme';
     }
@@ -360,8 +360,8 @@ class AuthManager {
 
         // 2. If no local user, check if server has a session
         try {
-            console.log('Checking server session at http://127.0.0.1:5000/api/auth/user...');
-            const response = await fetch('http://127.0.0.1:5000/api/auth/user', {
+            console.log(`Checking server session at ${window.location.origin}/api/auth/user...`);
+            const response = await fetch(`${window.location.origin}/api/auth/user`, {
                 credentials: 'include'
             });
 
@@ -542,7 +542,7 @@ class AuthManager {
             if (el) {
                 el.addEventListener('click', (e) => {
                     e.preventDefault();
-                    window.location.href = `http://127.0.0.1:5000/api/auth/${btn.provider}`;
+                    window.location.href = `${window.location.origin}/api/auth/${btn.provider}`;
                 });
             }
         });
@@ -620,7 +620,7 @@ class AuthManager {
         const newPassword = document.getElementById('reset-new-password').value;
 
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/auth/reset-password', {
+            const response = await fetch(`${window.location.origin}/api/auth/reset-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, newPassword })
@@ -650,7 +650,7 @@ class AuthManager {
     async createSession(user) {
         try {
             // Sync with backend to get MongoDB _id
-            const response = await fetch('http://127.0.0.1:5000/api/auth/login', {
+            const response = await fetch(`${window.location.origin}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -681,7 +681,7 @@ class AuthManager {
 
         try {
             // Also notify backend to clear session cookie
-            await fetch('http://127.0.0.1:5000/api/auth/logout', { credentials: 'include' });
+            await fetch(`${window.location.origin}/api/auth/logout`, { credentials: 'include' });
         } catch (e) {
             console.error("Backend logout failed:", e);
         }
@@ -2300,3 +2300,4 @@ let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new ProTrackApp();
 });
+
