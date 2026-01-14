@@ -129,7 +129,8 @@ passport.use(
 		{
 			clientID: process.env.GOOGLE_CLIENT_ID?.trim(),
 			clientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim(),
-			callbackURL: `${BASE_URL}/api/auth/google/callback`
+			callbackURL: `${BASE_URL}/api/auth/google/callback`,
+			proxy: true
 		},
 		async (accessToken, refreshToken, profile, done) => {
 			console.log('Google Auth profile received:', profile.id);
