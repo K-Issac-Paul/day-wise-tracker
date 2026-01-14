@@ -162,10 +162,32 @@ body {
 	gap: 32px;
 	position: fixed;
 	height: 100vh;
+	/* Fallback */
+	height: 100dvh;
 	left: 0;
 	top: 0;
 	box-shadow: var(--shadow-sm);
 	transition: all var(--transition-normal);
+	overflow-y: auto;
+}
+
+/* Custom Scrollbar for Sidebar */
+.sidebar::-webkit-scrollbar {
+	width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+	background: var(--text-tertiary);
+	border-radius: 4px;
+	opacity: 0.5;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+	background: var(--primary-color);
 }
 
 .logo {
@@ -205,6 +227,7 @@ body {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	flex: 1;
 }
 
 .nav-item {
@@ -1138,6 +1161,8 @@ textarea.input-field {
 		top: 0;
 		width: var(--sidebar-width);
 		height: 100vh;
+		/* Fallback */
+		height: 100dvh;
 		transform: translateX(-100%);
 		z-index: 999;
 		box-shadow: var(--shadow-xl);
