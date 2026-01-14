@@ -4,23 +4,26 @@
 class StorageManager {
     constructor() {
         this.BASE_URL = `${window.location.origin}/api`;
-        this.userId = this.getUserId();
         this.THEME_KEY = 'protrack_theme';
     }
 
-    getUserId() {
+    get userId() {
         const userJson = localStorage.getItem('protrack_user');
         if (userJson) {
-            const user = JSON.parse(userJson);
-            return user._id; // Ensure server returns _id
+            try {
+                const user = JSON.parse(userJson);
+                return user._id || user.id;
+            } catch (e) {
+                return null;
+            }
         }
         return null;
     }
 
     async apiCall(endpoint, method = 'GET', body = null) {
-        if (!this.userId) {
-            this.userId = this.getUserId();
-            if (!this.userId) return [];
+        const currentUserId = this.userId;
+        if (!currentUserId) {
+            throw new Error('User context missing. Please sign in again.');
         }
 
         try {
@@ -30,16 +33,19 @@ class StorageManager {
                 credentials: 'include' // Required for session cookies
             };
             if (body) {
-                body.userId = this.userId;
+                body.userId = currentUserId;
                 options.body = JSON.stringify(body);
             }
 
             const response = await fetch(`${this.BASE_URL}${endpoint}`, options);
-            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `API Error: ${response.statusText}`);
+            }
             return await response.json();
         } catch (error) {
             console.error('API Request Failed:', error);
-            return [];
+            throw error; // Propagate error to UI
         }
     }
 
@@ -130,7 +136,10 @@ const Utils = {
     // Get today's date in YYYY-MM-DD format
     getTodayDate() {
         const today = new Date();
-        return today.toISOString().split('T')[0];
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
     },
 
     // Get current month and year
@@ -313,6 +322,72 @@ const Utils = {
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
         }, 100);
+    },
+
+    // Debounce function
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+
+    // Show notification
+    showNotification(title, message, type = 'success', duration = 3000) {
+        const container = document.getElementById('notification-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+
+        let iconColor = type === 'success' ? 'var(--success-color)' : (type === 'error' ? 'var(--danger-color)' : 'var(--warning-color)');
+
+        toast.innerHTML = `
+            <div class="toast-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2">
+                    ${type === 'success' ? '<polyline points="20 6 9 17 4 12"></polyline>' :
+                (type === 'error' ? '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>' :
+                    '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>')}
+                </svg>
+            </div>
+            <div class="toast-content">
+                <div class="toast-title">${title}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+        `;
+
+        container.appendChild(toast);
+
+        // Auto remove
+        setTimeout(() => {
+            toast.classList.add('removing');
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    container.removeChild(toast);
+                }
+            }, 300);
+        }, duration);
+    },
+
+    // Loading State
+    toggleLoading(show, elementId = null) {
+        if (elementId) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                if (show) {
+                    el.style.opacity = '0.5';
+                    el.style.pointerEvents = 'none';
+                } else {
+                    el.style.opacity = '1';
+                    el.style.pointerEvents = 'auto';
+                }
+            }
+        }
     }
 };
 
@@ -350,34 +425,49 @@ class AuthManager {
         if (userJson) {
             try {
                 const user = JSON.parse(userJson);
-                console.log('Local user found:', user.email);
-                this.showApp(user);
-                return;
+                // IF user has an _id, we can show the app immediately for speed
+                if (user._id || user.id) {
+                    console.log('Local user found with ID:', user.email);
+                    this.showApp(user);
+
+                    // But also silently verify with server in background to refresh session
+                    this.verifyWithServer();
+                    return;
+                }
+                console.log('Local user found but NO ID, verifying with server...');
             } catch (e) {
                 console.error("Error parsing user data", e);
             }
         }
 
-        // 2. If no local user, check if server has a session
+        // 2. If no local user or missing ID, check server
+        await this.verifyWithServer();
+    }
+
+    async verifyWithServer() {
         try {
-            console.log(`Checking server session at ${window.location.origin}/api/auth/user...`);
+            console.log(`Verifying session at ${window.location.origin}/api/auth/user...`);
             const response = await fetch(`${window.location.origin}/api/auth/user`, {
                 credentials: 'include'
             });
 
-            console.log('Server response status:', response.status);
             if (response.ok) {
                 const user = await response.json();
-                console.log('Server session found! User:', user.email);
+                console.log('Server session verified! User:', user.email);
                 localStorage.setItem(this.USER_KEY, JSON.stringify(user));
                 this.showApp(user);
             } else {
                 console.log('No server session found (401).');
+                // If we don't have a valid server session AND we were missing an ID, 
+                // we must show the login page
                 this.showAuth();
             }
         } catch (error) {
             console.error('Failed to check server session:', error);
-            this.showAuth();
+            // Default to auth page if everything fails and we don't have a local session
+            if (!localStorage.getItem(this.USER_KEY)) {
+                this.showAuth();
+            }
         }
     }
 
@@ -524,7 +614,7 @@ class AuthManager {
 
             if (this.registerUser(email, name, password)) {
                 this.switchToLogin();
-                this.showError('Account created! You can now sign in.'); // Using showError for success message temporarily
+                Utils.showNotification('Success', 'Account created! You can now sign in.');
                 // Pre-fill login email
                 const loginEmail = document.getElementById('login-email');
                 if (loginEmail) loginEmail.value = email;
@@ -636,18 +726,19 @@ class AuthManager {
                     localStorage.setItem(this.REGISTERED_USERS_KEY, JSON.stringify(users));
                 }
 
-                alert('Password updated successfully! Please sign in with your new password.');
+                Utils.showNotification('Success', 'Password updated successfully! Please sign in with your new password.');
                 this.switchToLogin();
             } else {
-                alert(data.error || 'Failed to update password');
+                Utils.showNotification('Error', data.error || 'Failed to update password', 'error');
             }
         } catch (error) {
             console.error('Password reset error:', error);
-            alert('An error occurred. Please try again later.');
+            Utils.showNotification('Error', 'An error occurred. Please try again later.', 'error');
         }
     }
 
     async createSession(user) {
+        Utils.toggleLoading(true, 'login-form');
         try {
             // Sync with backend to get MongoDB _id
             const response = await fetch(`${window.location.origin}/api/auth/login`, {
@@ -665,13 +756,18 @@ class AuthManager {
             if (response.ok) {
                 const dbUser = await response.json();
                 user._id = dbUser._id; // Attach DB ID
+                localStorage.setItem(this.USER_KEY, JSON.stringify(user));
+                this.showApp(user);
+            } else {
+                const err = await response.json();
+                this.showError(err.error || 'Identity sync failed. Please try again.');
             }
         } catch (error) {
             console.error('Backend sync failed (Local Auth):', error);
+            this.showError('Could not connect to server. Check your internet.');
+        } finally {
+            Utils.toggleLoading(false, 'login-form');
         }
-
-        localStorage.setItem(this.USER_KEY, JSON.stringify(user));
-        this.showApp(user);
     }
 
 
@@ -744,6 +840,7 @@ class ProTrackApp {
         this.setupForms();
         this.setupFilters();
         this.setupBudget();
+        this.setupKeyboardShortcuts();
         this.updateCurrentDate();
         this.renderDashboard();
     }
@@ -942,7 +1039,7 @@ class ProTrackApp {
             document.getElementById('expense-amount').value = expense.amount;
             document.getElementById('expense-payment').value = expense.paymentMode;
             document.getElementById('expense-notes').value = expense.notes || '';
-            form.dataset.editId = expense.id;
+            form.dataset.editId = expense._id || expense.id;
         } else {
             // Add mode
             form.reset();
@@ -1044,6 +1141,20 @@ class ProTrackApp {
             });
         }
 
+        // Help modal
+        const helpBtn = document.getElementById('help-btn');
+        if (helpBtn) {
+            helpBtn.addEventListener('click', () => {
+                document.getElementById('help-modal').classList.add('active');
+            });
+        }
+        const closeHelp = document.getElementById('close-help-modal');
+        if (closeHelp) {
+            closeHelp.addEventListener('click', () => {
+                this.closeModal(document.getElementById('help-modal'));
+            });
+        }
+
         // Time validation
         const timeStart = document.getElementById('time-start');
         const timeEnd = document.getElementById('time-end');
@@ -1067,96 +1178,157 @@ class ProTrackApp {
                 }
             });
         });
+
+        // Real-time expense amount validation
+        const amountInput = document.getElementById('expense-amount');
+        if (amountInput) {
+            amountInput.addEventListener('input', () => {
+                const val = parseFloat(amountInput.value);
+                if (val <= 0) {
+                    amountInput.closest('.form-group')?.classList.add('error');
+                } else {
+                    amountInput.closest('.form-group')?.classList.remove('error');
+                }
+            });
+        }
+    }
+
+    setupKeyboardShortcuts() {
+        window.addEventListener('keydown', (e) => {
+            // Only trigger if no input is focused
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+                return;
+            }
+
+            if (e.altKey && e.key.toLowerCase() === 'e') {
+                e.preventDefault();
+                this.openExpenseModal();
+            } else if (e.altKey && e.key.toLowerCase() === 't') {
+                e.preventDefault();
+                this.openTimeModal();
+            } else if (e.altKey && e.key.toLowerCase() === 'b') {
+                e.preventDefault();
+                const editBtn = document.getElementById('edit-budget-btn');
+                if (editBtn) editBtn.click();
+            } else if (e.altKey && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                this.switchView('expenses');
+                setTimeout(() => document.getElementById('expense-search').focus(), 100);
+            }
+        });
     }
 
     async handleExpenseSubmit(form) {
-        let category = document.getElementById('expense-category').value;
-        if (category === 'Other') {
-            category = document.getElementById('expense-category-custom').value;
+        Utils.toggleLoading(true, 'expense-form');
+        try {
+            let category = document.getElementById('expense-category').value;
+            if (category === 'Other') {
+                category = document.getElementById('expense-category-custom').value;
+            }
+
+            const amountInput = document.getElementById('expense-amount');
+            const amount = parseFloat(amountInput.value);
+
+            if (isNaN(amount) || amount <= 0) {
+                amountInput.parentElement.classList.add('error');
+                Utils.showNotification('Invalid Amount', 'Please enter a positive numeric value.', 'error');
+                return;
+            } else {
+                amountInput.parentElement.classList.remove('error');
+            }
+
+            const expense = {
+                date: document.getElementById('expense-date').value,
+                category: category,
+                amount: amount,
+                paymentMode: document.getElementById('expense-payment').value,
+                notes: document.getElementById('expense-notes').value
+            };
+
+            if (form.dataset.editId) {
+                // Update existing expense
+                await this.storage.updateExpense(form.dataset.editId, expense);
+                Utils.showNotification('Updated', 'Expense has been updated successfully.');
+            } else {
+                // Add new expense
+                await this.storage.addExpense(expense);
+                Utils.showNotification('Success', 'New expense added successfully.');
+            }
+
+            this.closeModal(document.getElementById('expense-modal'));
+            this.refreshCurrentView();
+        } catch (error) {
+            console.error('Submit Expense Error:', error);
+            Utils.showNotification('Error', 'Failed to save expense. Please try again.', 'error');
+        } finally {
+            Utils.toggleLoading(false, 'expense-form');
         }
-
-        const expense = {
-            date: document.getElementById('expense-date').value,
-            category: category,
-            amount: parseFloat(document.getElementById('expense-amount').value),
-            paymentMode: document.getElementById('expense-payment').value,
-            notes: document.getElementById('expense-notes').value
-        };
-
-        if (form.dataset.editId) {
-            // Update existing expense
-            await this.storage.updateExpense(form.dataset.editId, expense);
-        } else {
-            // Add new expense
-            await this.storage.addExpense(expense);
-        }
-
-        this.closeModal(document.getElementById('expense-modal'));
-        this.refreshCurrentView();
     }
 
     async handleTimeSubmit(form) {
-        const startTime = document.getElementById('time-start').value;
-        const endTime = document.getElementById('time-end').value;
+        Utils.toggleLoading(true, 'time-form');
+        try {
+            const startTime = document.getElementById('time-start').value;
+            const endTime = document.getElementById('time-end').value;
 
-        if (!startTime || !endTime) {
-            console.warn('Please select both start and end times');
-            return;
+            if (!startTime || !endTime) {
+                Utils.showNotification('Missing Time', 'Please select both start and end times.', 'warning');
+                return;
+            }
+
+            const start24 = Utils.to24Hour(startTime);
+            const end24 = Utils.to24Hour(endTime);
+
+            const start = new Date(`2000-01-01T${start24}`);
+            const end = new Date(`2000-01-01T${end24}`);
+
+            let diffMinutes = Math.round((end - start) / 60000);
+
+            // Handle midnight wrap (e.g., 11 PM to 2 AM)
+            if (diffMinutes <= 0) {
+                diffMinutes += 1440; // Add 24 hours
+            }
+
+            const { hours, minutes } = Utils.fromMinutes(diffMinutes);
+
+            let activity = document.getElementById('time-activity').value;
+            if (activity === 'Other') {
+                activity = document.getElementById('time-activity-custom').value;
+            }
+
+            const entry = {
+                date: document.getElementById('time-date').value,
+                activity: activity,
+                startTime: start24,
+                endTime: end24,
+                hours: hours,
+                minutes: minutes,
+                duration: Utils.formatDuration(hours, minutes),
+                notes: document.getElementById('time-notes').value
+            };
+
+            // Validate total time for the day
+            const totalMinutes = await this.getTotalMinutesForDate(entry.date, form.dataset.editId);
+            const newMinutes = Utils.toMinutes(entry.hours, entry.minutes);
+
+            if (form.dataset.editId) {
+                // Update existing entry
+                await this.storage.updateTimeEntry(form.dataset.editId, entry);
+                Utils.showNotification('Updated', 'Activity entry updated successfully.');
+            } else {
+                // Add new entry
+                await this.storage.addTimeEntry(entry);
+                Utils.showNotification('Success', 'Activity tracked successfully.');
+            }
+
+            this.closeModal(document.getElementById('time-modal'));
+            this.refreshCurrentView();
+        } catch (error) {
+            console.error('Submit Time Error:', error);
+            Utils.showNotification('Error', 'Failed to save activity. Please try again.', 'error');
+        } finally {
+            Utils.toggleLoading(false, 'time-form');
         }
-
-        const start24 = Utils.to24Hour(startTime);
-        const end24 = Utils.to24Hour(endTime);
-
-        const start = new Date(`2000-01-01T${start24}`);
-        const end = new Date(`2000-01-01T${end24}`);
-
-        let diffMinutes = Math.round((end - start) / 60000);
-
-        // Handle midnight wrap (e.g., 11 PM to 2 AM)
-        if (diffMinutes <= 0) {
-            diffMinutes += 1440; // Add 24 hours
-        }
-
-        const { hours, minutes } = Utils.fromMinutes(diffMinutes);
-
-        let activity = document.getElementById('time-activity').value;
-        if (activity === 'Other') {
-            activity = document.getElementById('time-activity-custom').value;
-        }
-
-        const entry = {
-            date: document.getElementById('time-date').value,
-            activity: activity,
-            startTime: start24,
-            endTime: end24,
-            hours: hours,
-            minutes: minutes,
-            duration: Utils.formatDuration(hours, minutes),
-            notes: document.getElementById('time-notes').value
-        };
-
-        // Validate total time for the day
-        const totalMinutes = await this.getTotalMinutesForDate(entry.date, form.dataset.editId);
-        const newMinutes = Utils.toMinutes(entry.hours, entry.minutes);
-
-        // Limit check removed as per user request (no restrictions)
-        /*
-        if (totalMinutes + newMinutes > 1440) { 
-            console.warn('Total time for this day exceeds 24 hours!');
-            return;
-        }
-        */
-
-        if (form.dataset.editId) {
-            // Update existing entry
-            await this.storage.updateTimeEntry(form.dataset.editId, entry);
-        } else {
-            // Add new entry
-            await this.storage.addTimeEntry(entry);
-        }
-
-        this.closeModal(document.getElementById('time-modal'));
-        this.refreshCurrentView();
     }
 
     async validateTimeEntry() {
@@ -1221,6 +1393,14 @@ class ProTrackApp {
             }
         });
 
+        // Search expense
+        const expenseSearch = document.getElementById('expense-search');
+        if (expenseSearch) {
+            expenseSearch.addEventListener('input', Utils.debounce(() => {
+                this.renderExpensesView();
+            }, 300));
+        }
+
         // Time filters
         const timeDateFilter = document.getElementById('time-date-filter');
         const timeMonthFilter = document.getElementById('time-month-filter');
@@ -1274,9 +1454,17 @@ class ProTrackApp {
     // Dashboard Rendering
     // ===================================
     async renderDashboard() {
-        await this.updateDashboardStats();
-        await this.renderTodayExpenses();
-        await this.renderTodayTimeChart();
+        try {
+            this.updateCurrentDate();
+            await this.updateDashboardStats();
+            await this.renderTodayExpenses();
+            await this.renderTodayTimeChart();
+        } catch (error) {
+            console.error('Render Dashboard Error:', error);
+            if (error.message.includes('User context')) {
+                this.auth.logout();
+            }
+        }
     }
 
     async updateDashboardStats() {
@@ -1330,14 +1518,22 @@ class ProTrackApp {
         const remaining = Utils.fromMinutes(remainingMinutes);
         document.getElementById('hours-remaining').textContent = `${Utils.formatDuration(remaining.hours, remaining.minutes)} remaining`;
 
-        // Productivity score
+        // Productivity Score - Clarify logic
         const workActivities = ['Office Work', 'Meetings', 'Learning'];
         const workMinutes = todayTime
             .filter(e => workActivities.includes(e.activity))
             .reduce((sum, e) => sum + Utils.toMinutes(e.hours, e.minutes), 0);
 
         const productivityScore = todayMinutes > 0 ? Math.round((workMinutes / todayMinutes) * 100) : 0;
-        document.getElementById('productivity-score').textContent = `${productivityScore}%`;
+        const scoreEl = document.getElementById('productivity-score');
+        scoreEl.textContent = `${productivityScore}%`;
+
+        // Add a helpful tooltip if it's 0% due to no data
+        if (todayMinutes === 0) {
+            scoreEl.setAttribute('data-tooltip', 'Add work activities to see your productivity score.');
+        } else {
+            scoreEl.removeAttribute('data-tooltip'); // Use the trend one instead
+        }
     }
 
     async renderTodayExpenses() {
@@ -1350,8 +1546,11 @@ class ProTrackApp {
 
         if (expenses.length === 0) {
             container.innerHTML = `
-                <div class="empty-state">
-                    <p>No expenses recorded today</p>
+                <div class="empty-state" style="padding: 24px; margin: 0; background: transparent; border: none;">
+                    <p style="margin-bottom: 16px;">No expenses recorded today</p>
+                    <button class="btn-secondary" onclick="app.openExpenseModal()" style="font-size: 13px; padding: 8px 16px;">
+                        Add Now
+                    </button>
                 </div>
             `;
             return;
@@ -1380,8 +1579,11 @@ class ProTrackApp {
 
         if (entries.length === 0) {
             container.innerHTML = `
-                <div class="empty-state">
-                    <p>No time entries recorded today</p>
+                <div class="empty-state" style="padding: 24px; margin: 0; background: transparent; border: none;">
+                    <p style="margin-bottom: 16px;">No time entries recorded today</p>
+                    <button class="btn-secondary" onclick="app.openTimeModal()" style="font-size: 13px; padding: 8px 16px;">
+                        Start Tracking
+                    </button>
                 </div>
             `;
             return;
@@ -1488,6 +1690,10 @@ class ProTrackApp {
         const visualWidth = Math.min(percentage, 100);
         progressBar.style.width = `${visualWidth}%`;
 
+        // Accessibility: Updating ARIA attributes
+        progressBar.setAttribute('aria-valuenow', Math.round(percentage));
+        progressBar.parentElement.setAttribute('aria-label', `Budget usage: ${Math.round(percentage)}%`);
+
         // Reset classes
         displayContainer.classList.remove('budget-warning', 'budget-over-limit');
         messageEl.textContent = '';
@@ -1510,74 +1716,92 @@ class ProTrackApp {
     // Expenses View
     // ===================================
     async renderExpensesView() {
-        await this.renderBudgetInfo();
-        const container = document.getElementById('expenses-table-container');
-        let expenses = await this.storage.getExpenses();
+        try {
+            await this.renderBudgetInfo();
+            const container = document.getElementById('expenses-table-container');
+            let expenses = await this.storage.getExpenses();
 
-        // Apply filters
-        const dateFilter = document.getElementById('expense-date-filter').value;
-        const monthFilter = document.getElementById('expense-month-filter').value;
-        const categoryFilter = document.getElementById('expense-category-filter').value;
-        const categoryCustomFilter = document.getElementById('expense-category-custom-filter').value;
-        const paymentFilter = document.getElementById('expense-payment-filter').value;
-        const sortFilter = document.getElementById('expense-sort-filter').value;
+            // Apply filters
+            const dateFilter = document.getElementById('expense-date-filter').value;
+            const monthFilter = document.getElementById('expense-month-filter').value;
+            const categoryFilter = document.getElementById('expense-category-filter').value;
+            const categoryCustomFilter = document.getElementById('expense-category-custom-filter').value;
+            const paymentFilter = document.getElementById('expense-payment-filter').value;
+            const sortFilter = document.getElementById('expense-sort-filter').value;
 
-        if (dateFilter) {
-            expenses = expenses.filter(e => e.date === dateFilter);
-        } else if (monthFilter) {
-            expenses = expenses.filter(e => e.date.startsWith(monthFilter));
-        }
+            if (dateFilter) {
+                expenses = expenses.filter(e => e.date === dateFilter);
+            } else if (monthFilter) {
+                expenses = expenses.filter(e => e.date.startsWith(monthFilter));
+            }
 
-        if (categoryFilter) {
-            if (categoryFilter === 'Other') {
-                const standardCategories = ['Food', 'Travel', 'Rent', 'Bills', 'Shopping', 'Entertainment', 'Medical'];
-                if (categoryCustomFilter.trim()) {
-                    expenses = expenses.filter(e => e.category.toLowerCase().includes(categoryCustomFilter.toLowerCase()));
+            if (categoryFilter) {
+                if (categoryFilter === 'Other') {
+                    const standardCategories = ['Food', 'Travel', 'Rent', 'Bills', 'Shopping', 'Entertainment', 'Medical'];
+                    if (categoryCustomFilter.trim()) {
+                        expenses = expenses.filter(e => e.category.toLowerCase().includes(categoryCustomFilter.toLowerCase()));
+                    } else {
+                        expenses = expenses.filter(e => !standardCategories.includes(e.category));
+                    }
                 } else {
-                    expenses = expenses.filter(e => !standardCategories.includes(e.category));
+                    expenses = expenses.filter(e => e.category === categoryFilter);
                 }
-            } else {
-                expenses = expenses.filter(e => e.category === categoryFilter);
             }
-        }
-        if (paymentFilter) {
-            expenses = expenses.filter(e => e.paymentMode === paymentFilter);
-        }
-
-        // Sort results
-        expenses.sort((a, b) => {
-            switch (sortFilter) {
-                case 'date-desc':
-                    return new Date(b.date) - new Date(a.date);
-                case 'date-asc':
-                    return new Date(a.date) - new Date(b.date);
-                case 'amount-desc':
-                    return b.amount - a.amount;
-                case 'amount-asc':
-                    return a.amount - b.amount;
-                case 'category':
-                    return a.category.localeCompare(b.category);
-                default:
-                    return new Date(b.date) - new Date(a.date);
+            if (paymentFilter) {
+                expenses = expenses.filter(e => e.paymentMode === paymentFilter);
             }
-        });
 
-        if (expenses.length === 0) {
-            container.innerHTML = `
+            // Apply search
+            const searchQuery = document.getElementById('expense-search').value.toLowerCase();
+            if (searchQuery) {
+                expenses = expenses.filter(e =>
+                    (e.notes && e.notes.toLowerCase().includes(searchQuery)) ||
+                    (e.category && e.category.toLowerCase().includes(searchQuery))
+                );
+            }
+
+            // Sort results
+            expenses.sort((a, b) => {
+                switch (sortFilter) {
+                    case 'date-desc':
+                        return new Date(b.date) - new Date(a.date);
+                    case 'date-asc':
+                        return new Date(a.date) - new Date(b.date);
+                    case 'amount-desc':
+                        return b.amount - a.amount;
+                    case 'amount-asc':
+                        return a.amount - b.amount;
+                    case 'category':
+                        return a.category.localeCompare(b.category);
+                    default:
+                        return new Date(b.date) - new Date(a.date);
+                }
+            });
+
+            if (expenses.length === 0) {
+                container.innerHTML = `
                 <div class="empty-state">
                     <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="1" x2="12" y2="23"></line>
                         <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                     </svg>
-                    <p>No expenses found</p>
+                    <h3>No expenses recorded</h3>
+                    <p>Start tracking your expenses to see them here.</p>
+                    <button class="btn-primary" onclick="app.openExpenseModal()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Add Your First Expense
+                    </button>
                 </div>
             `;
-            return;
-        }
+                return;
+            }
 
-        const total = expenses.reduce((sum, e) => sum + e.amount, 0);
+            const total = expenses.reduce((sum, e) => sum + e.amount, 0);
 
-        container.innerHTML = `
+            container.innerHTML = `
             <div style="margin-bottom: 16px; padding: 16px; background: var(--bg-tertiary); border-radius: var(--radius-md);">
                 <strong>Total: ${Utils.formatCurrency(total)}</strong> (${expenses.length} entries)
             </div>
@@ -1615,6 +1839,15 @@ class ProTrackApp {
                 </tbody>
             </table>
         `;
+        } catch (error) {
+            console.error('Render Expenses Error:', error);
+            if (error.message.includes('User context')) {
+                this.auth.logout();
+            } else {
+                document.getElementById('expenses-table-container').innerHTML =
+                    `<p class="error-text" style="display:block; text-align:center;">Failed to load expenses. ${error.message}</p>`;
+            }
+        }
     }
 
     async editExpense(id) {
@@ -1712,7 +1945,15 @@ class ProTrackApp {
         document.getElementById('remaining-time').textContent = Utils.formatDuration(remaining.hours, remaining.minutes);
         document.getElementById('remaining-time').parentElement.querySelector('.label').textContent = remainingLabel;
 
-        document.getElementById('time-progress-fill').style.width = `${progressPercent}%`;
+        const summaryPercentage = document.getElementById('summary-percentage');
+        if (summaryPercentage) {
+            summaryPercentage.textContent = `${progressPercent}%`;
+        }
+
+        const progressBar = document.getElementById('time-progress-fill');
+        progressBar.style.width = `${progressPercent}%`;
+        progressBar.parentElement.setAttribute('aria-valuenow', Math.round(progressPercent));
+        progressBar.parentElement.setAttribute('aria-label', `Daily quota tracked: ${progressPercent}%`);
 
         // If a Month Filter is active, maybe add a small note or total for the month elsewhere, 
         // but keep the card focused on "Day Quota" as requested by "Hours Left".
@@ -1731,7 +1972,15 @@ class ProTrackApp {
                         <circle cx="12" cy="12" r="10"></circle>
                         <polyline points="12 6 12 12 16 14"></polyline>
                     </svg>
-                    <p>No time entries found</p>
+                    <h3>No time entries recorded</h3>
+                    <p>Start tracking your day to see your activity logs.</p>
+                    <button class="btn-primary" onclick="app.openTimeModal()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Track Your First Activity
+                    </button>
                 </div>
             `;
             return;
@@ -1812,6 +2061,15 @@ class ProTrackApp {
         await this.renderMonthlyCharts();
     }
 
+    renderNoDataChart(ctx, message) {
+        const canvas = ctx.canvas;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#cbd5e0';
+        ctx.font = '14px Inter';
+        ctx.textAlign = 'center';
+        ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+    }
+
     async updateMonthlyStats() {
         const allExpenses = await this.storage.getExpenses();
         const expenses = allExpenses.filter(e => {
@@ -1831,10 +2089,13 @@ class ProTrackApp {
         const totalSpending = expenses.reduce((sum, e) => sum + e.amount, 0);
         document.getElementById('monthly-total-spending').textContent = Utils.formatCurrency(totalSpending);
 
-        // Daily average
-        const daysInMonth = new Date(this.selectedMonth.year, this.selectedMonth.month + 1, 0).getDate();
-        const dailyAvg = totalSpending / daysInMonth;
-        document.getElementById('monthly-daily-avg').textContent = `Daily Average: ${Utils.formatCurrency(dailyAvg)}`;
+        // Daily average (from recorded data)
+        const recordedDays = new Set(expenses.map(e => e.date)).size;
+        let dailyAvg = totalSpending / (recordedDays || 1);
+        const avgLabel = recordedDays > 1 ? `Daily Average (from ${recordedDays} recorded days):` : `Daily Average (from recorded data):`;
+
+        const avgDisplay = document.getElementById('monthly-daily-avg');
+        avgDisplay.innerHTML = `${avgLabel} <strong style="color: var(--text-primary);">${Utils.formatCurrency(dailyAvg)}</strong>`;
 
         // Average working hours
         const workActivities = ['Office Work', 'Meetings', 'Learning'];
@@ -1885,6 +2146,11 @@ class ProTrackApp {
         const labels = Object.keys(categoryData);
         const data = Object.values(categoryData);
         const colors = labels.map(cat => Utils.getCategoryColor(cat));
+
+        if (expenses.length === 0) {
+            this.renderNoDataChart(ctx, 'No Expenses Found');
+            return;
+        }
 
         this.charts.expenseCategory = new Chart(ctx, {
             type: 'doughnut',
@@ -1947,6 +2213,11 @@ class ProTrackApp {
 
         const labels = Object.keys(activityData);
         const data = Object.values(activityData).map(m => (m / 60).toFixed(1));
+
+        if (entries.length === 0) {
+            this.renderNoDataChart(ctx, 'No Activity Recorded');
+            return;
+        }
 
         this.charts.timeAllocation = new Chart(ctx, {
             type: 'pie',
@@ -2019,6 +2290,11 @@ class ProTrackApp {
         const labels = dates.map(d => new Date(d).getDate());
         const data = dates.map(d => dailyData[d]);
 
+        if (expenses.length === 0) {
+            this.renderNoDataChart(ctx, 'No spending recorded for this month');
+            return;
+        }
+
         this.charts.dailyExpense = new Chart(ctx, {
             type: 'line',
             data: {
@@ -2076,6 +2352,15 @@ class ProTrackApp {
         const container = document.getElementById('top-categories-list');
         const expenses = await this.storage.getExpenses();
 
+        if (expenses.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state" style="padding: 24px; border: none; background: transparent;">
+                    <p>No spending data to show.</p>
+                </div>
+            `;
+            return;
+        }
+
         // Group by category
         const categoryData = {};
         expenses.forEach(expense => {
@@ -2122,6 +2407,11 @@ class ProTrackApp {
         const labels = Object.keys(paymentData);
         const data = Object.values(paymentData);
 
+        if (expenses.length === 0) {
+            this.renderNoDataChart(ctx, 'No Data Available');
+            return;
+        }
+
         this.charts.paymentMode = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -2167,6 +2457,15 @@ class ProTrackApp {
         const container = document.getElementById('productivity-insights');
         const entries = await this.storage.getTimeEntries();
 
+        if (entries.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state" style="padding: 24px; border: none; background: transparent;">
+                    <p>Add time entries to see insights.</p>
+                </div>
+            `;
+            return;
+        }
+
         const workActivities = ['Office Work', 'Meetings', 'Learning'];
         const workMinutes = entries
             .filter(e => workActivities.includes(e.activity))
@@ -2176,7 +2475,10 @@ class ProTrackApp {
         const productivityPercent = totalMinutes > 0 ? (workMinutes / totalMinutes * 100).toFixed(1) : 0;
 
         const workHours = Utils.fromMinutes(workMinutes);
-        const avgDailyWork = Utils.fromMinutes(Math.round(workMinutes / 30)); // Assuming 30 days
+
+        // Calculate average based on days in the current month or total days tracked
+        const trackedDaysCount = new Set(entries.map(e => e.date)).size;
+        const avgDailyWork = Utils.fromMinutes(Math.round(workMinutes / (trackedDaysCount || 1)));
 
         container.innerHTML = `
             <div class="category-item">
@@ -2188,12 +2490,12 @@ class ProTrackApp {
             </div>
             <div class="category-item">
                 <div class="category-info">
-                    <span>📊</span>
+                    <span data-tooltip="Based on work hours vs total tracked time.">📊</span>
                     <span>Productivity Rate</span>
                 </div>
                 <div class="category-amount">${productivityPercent}%</div>
             </div>
-            <div class="category-item">
+            <div class="category-item" data-tooltip="Average based on ${trackedDaysCount} active days.">
                 <div class="category-info">
                     <span>📅</span>
                     <span>Avg Daily Work</span>
@@ -2213,6 +2515,11 @@ class ProTrackApp {
         }
 
         const expenses = await this.storage.getExpenses();
+
+        if (expenses.length === 0) {
+            this.renderNoDataChart(ctx, 'No recent data available');
+            return;
+        }
 
         // Get last 7 days
         const last7Days = [];
@@ -2279,6 +2586,7 @@ class ProTrackApp {
     // ===================================
     updateCurrentDate() {
         const dateElement = document.getElementById('current-date');
+        if (!dateElement) return;
         const today = new Date();
         dateElement.textContent = today.toLocaleDateString('en-IN', {
             weekday: 'long',

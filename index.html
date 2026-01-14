@@ -327,6 +327,15 @@
 					</svg>
 					<span>Analytics</span>
 				</button>
+
+				<button class="nav-item" id="help-btn" style="margin-top: 24px;">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<circle cx="12" cy="12" r="10"></circle>
+						<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+						<line x1="12" y1="17" x2="12.01" y2="17"></line>
+					</svg>
+					<span>Help & Shortcuts</span>
+				</button>
 			</nav>
 
 			<div class="sidebar-footer">
@@ -411,7 +420,10 @@
 						<div class="stat-content">
 							<p class="stat-label">Productivity Score</p>
 							<h3 class="stat-value" id="productivity-score">0%</h3>
-							<span class="stat-change" id="productivity-trend">Based on work hours</span>
+							<span class="stat-change" id="productivity-trend"
+								data-tooltip="Calculated as: (Work Hours / Total Tracked Hours) × 100. Work hours include: Office Work, Meetings, and Learning.">
+								Based on work hours ⓘ
+							</span>
 						</div>
 					</div>
 				</div>
@@ -478,7 +490,7 @@
 								<h3 style="font-size: 18px; margin-bottom: 4px;">Monthly Budget</h3>
 								<p class="subtitle" style="margin-bottom: 0;">Manage your monthly spending limit</p>
 							</div>
-							<button id="edit-budget-btn" class="btn-icon" title="Edit Budget">
+							<button id="edit-budget-btn" class="btn-icon">
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
 									stroke-width="2">
 									<line x1="12" y1="5" x2="12" y2="19"></line>
@@ -489,8 +501,11 @@
 
 						<div id="budget-input-container" style="display: none; margin-bottom: 24px;">
 							<div class="budget-input-wrapper">
-								<input type="number" id="monthly-budget-input"
-									placeholder="Enter Monthly Income / Pocket Money" class="input-field">
+								<label for="monthly-budget-input"
+									style="font-size: 13px; font-weight: 600; margin-bottom: 8px; display: block;">Enter
+									Monthly Budget Amount (₹)</label>
+								<input type="number" id="monthly-budget-input" placeholder="e.g. 50000"
+									class="input-field">
 								<div class="budget-input-actions">
 									<button id="save-budget-btn" class="btn-primary">Save</button>
 									<button id="cancel-budget-btn" class="btn-secondary">Cancel</button>
@@ -514,7 +529,8 @@
 								</div>
 							</div>
 							<div class="budget-progress-container">
-								<div class="budget-progress-bar">
+								<div class="budget-progress-bar" role="progressbar" aria-label="Monthly budget usage"
+									aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
 									<div id="budget-progress-fill" class="budget-progress-fill"></div>
 								</div>
 								<span id="budget-percentage" class="budget-percentage">0% used</span>
@@ -525,6 +541,16 @@
 				</div>
 
 				<div class="filters-bar">
+					<div style="flex: 1; min-width: 200px; position: relative; display: flex; align-items: center;">
+						<input type="text" id="expense-search" class="input-field" placeholder="Search expenses..."
+							style="width: 100%; padding-left: 40px;">
+						<svg style="position: absolute; left: 12px; color: var(--text-tertiary); pointer-events: none;"
+							width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+							stroke-width="2">
+							<circle cx="11" cy="11" r="8"></circle>
+							<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+						</svg>
+					</div>
 					<input type="date" id="expense-date-filter" class="input-field" title="Filter by Date">
 					<input type="month" id="expense-month-filter" class="input-field" title="Filter by Month">
 					<select id="expense-category-filter" class="select-field">
@@ -631,8 +657,13 @@
 						<span class="label">Remaining:</span>
 						<span class="value" id="remaining-time">24h 0m</span>
 					</div>
-					<div class="time-progress-bar">
-						<div class="time-progress-fill" id="time-progress-fill"></div>
+					<div class="time-summary-item">
+						<span class="label">Daily Quota used:</span>
+						<span class="value" id="summary-percentage">0%</span>
+					</div>
+					<div class="time-progress-bar" role="progressbar" aria-label="Daily time tracked" aria-valuemin="0"
+						aria-valuemax="100">
+						<div class="time-progress-fill" id="time-progress-fill" style="width: 0%;"></div>
 					</div>
 				</div>
 
@@ -671,7 +702,9 @@
 					<div class="stat-card-large">
 						<h4>Total Monthly Spending</h4>
 						<h2 id="monthly-total-spending">₹0</h2>
-						<p id="monthly-daily-avg">Daily Average: ₹0</p>
+						<p id="monthly-daily-avg"
+							data-tooltip="Calculated based on actual recorded data in this month.">Daily Average (from
+							recorded data): ₹0</p>
 					</div>
 					<div class="stat-card-large">
 						<h4>Average Working Hours</h4>
@@ -795,7 +828,9 @@
 				</div>
 				<div class="form-group">
 					<label for="expense-amount">Amount (₹)</label>
-					<input type="number" id="expense-amount" class="input-field" min="0" step="0.01" required>
+					<input type="number" id="expense-amount" class="input-field" min="0" step="0.01" placeholder="0.00"
+						required>
+					<div class="error-text">Please enter a valid amount</div>
 				</div>
 				<div class="form-group">
 					<label for="expense-payment">Payment Mode</label>
@@ -809,7 +844,8 @@
 				</div>
 				<div class="form-group">
 					<label for="expense-notes">Notes (Optional)</label>
-					<textarea id="expense-notes" class="input-field" rows="3"></textarea>
+					<textarea id="expense-notes" class="input-field" rows="3"
+						placeholder="What was this for?"></textarea>
 				</div>
 				<div class="modal-footer">
 					<button type="button" class="btn-secondary" id="cancel-expense">Cancel</button>
@@ -864,7 +900,8 @@
 				</div>
 				<div class="form-group">
 					<label for="time-notes">Notes (Optional)</label>
-					<textarea id="time-notes" class="input-field" rows="3"></textarea>
+					<textarea id="time-notes" class="input-field" rows="3"
+						placeholder="Describe your activity..."></textarea>
 				</div>
 				<div class="time-validation-warning" id="time-validation-warning" style="display: none;">
 					⚠️ Total time for this day will exceed 24 hours!
@@ -877,9 +914,66 @@
 		</div>
 	</div>
 
+	<!-- Notification Container -->
+	<div id="notification-container"></div>
+
 	<!-- Edit Modals (will be populated dynamically) -->
 	<div id="edit-expense-modal" class="modal"></div>
 	<div id="edit-time-modal" class="modal"></div>
+
+	<!-- Help & Shortcuts Modal -->
+	<div id="help-modal" class="modal">
+		<div class="modal-content" style="max-width: 600px;">
+			<div class="modal-header">
+				<h3>Quick Help & Keyboard Shortcuts</h3>
+				<button class="modal-close" id="close-help-modal">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<line x1="18" y1="6" x2="6" y2="18"></line>
+						<line x1="6" y1="6" x2="18" y2="18"></line>
+					</svg>
+				</button>
+			</div>
+			<div class="modal-body">
+				<div style="margin-bottom: 24px;">
+					<h4 style="margin-bottom: 12px; color: var(--primary-color);">Keyboard Shortcuts</h4>
+					<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+						<div
+							style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-tertiary); border-radius: 8px;">
+							<span>Add New Expense</span>
+							<kbd>Alt + E</kbd>
+						</div>
+						<div
+							style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-tertiary); border-radius: 8px;">
+							<span>Add New Activity</span>
+							<kbd>Alt + T</kbd>
+						</div>
+						<div
+							style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-tertiary); border-radius: 8px;">
+							<span>Edit Monthly Budget</span>
+							<kbd>Alt + B</kbd>
+						</div>
+						<div
+							style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-tertiary); border-radius: 8px;">
+							<span>Search Expenses</span>
+							<kbd>Alt + S</kbd>
+						</div>
+					</div>
+				</div>
+
+				<div style="margin-bottom: 24px;">
+					<h4 style="margin-bottom: 12px; color: var(--primary-color);">Pro Tips</h4>
+					<ul style="padding-left: 20px; color: var(--text-secondary); line-height: 1.8;">
+						<li>Use the <strong>Analytics</strong> tab for deep insights into your spending habits.</li>
+						<li>The <strong>Monthly Overview</strong> helps you compare work vs personal time allocation.
+						</li>
+						<li>You can <strong>Export</strong> your data anytime to CSV for local backup.</li>
+						<li>Hover over ⓘ icons to see calculation details.</li>
+						<li>Click on any date/time field to open the native selector.</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</div>
 
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 	<script src="timepicker.js"></script>

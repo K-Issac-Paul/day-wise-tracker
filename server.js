@@ -10,9 +10,16 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Determine BASE_URL dynamically (Local vs Production)
+const IS_LOCAL = !process.env.BASE_URL || process.env.BASE_URL.includes('localhost');
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+
+console.log(`🌍 Environment: ${IS_LOCAL ? 'LOCAL' : 'PRODUCTION'}`);
+console.log(`🔗 Base URL: ${BASE_URL}`);
+
 // Middleware
 app.use(cors({
-	origin: [process.env.BASE_URL || 'http://localhost:5000'],
+	origin: [BASE_URL],
 	credentials: true
 }));
 app.use(bodyParser.json());
@@ -20,12 +27,12 @@ app.use(bodyParser.json());
 // Session & Passport Initialization
 app.use(session({
 	secret: process.env.SESSION_SECRET || 'protrack_secret',
-	resave: true, // Set to true to force session save
-	saveUninitialized: true,
+	resave: false,
+	saveUninitialized: false, // Don't create session until something stored
 	cookie: {
-		secure: false,
-		httpOnly: false, // Set to false temporarily for debugging
-		sameSite: 'lax',
+		secure: !IS_LOCAL, // Secure cookies only on production (HTTPS)
+		httpOnly: true,
+		sameSite: IS_LOCAL ? 'lax' : 'none', // 'none' for cross-site cookie on prod
 		maxAge: 24 * 60 * 60 * 1000 // 24 hours
 	}
 }));
@@ -122,7 +129,7 @@ passport.use(
 		{
 			clientID: process.env.GOOGLE_CLIENT_ID?.trim(),
 			clientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim(),
-			callbackURL: `${process.env.BASE_URL}/api/auth/google/callback`
+			callbackURL: `${BASE_URL}/api/auth/google/callback`
 		},
 		async (accessToken, refreshToken, profile, done) => {
 			console.log('Google Auth profile received:', profile.id);
@@ -186,7 +193,7 @@ app.get('/api/auth/google/callback',
 			}
 			req.logIn(user, (err) => {
 				if (err) return next(err);
-				return res.redirect(process.env.BASE_URL || 'http://localhost:5000');
+				return res.redirect(BASE_URL);
 			});
 		})(req, res, next);
 	}
@@ -206,15 +213,14 @@ app.get('/api/auth/logout', (req, res, next) => {
 	if (typeof req.logout === 'function') {
 		req.logout((err) => {
 			if (err) return next(err);
-			const frontendUrl = process.env.BASE_URL || 'http://localhost:5000';
-			res.redirect(frontendUrl);
+			res.redirect(BASE_URL);
 		});
 	} else {
-		res.redirect(process.env.BASE_URL || 'http://localhost:5000');
+		res.redirect(BASE_URL);
 	}
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', async (req, res, next) => {
 	try {
 		const { email, name, picture, googleId, password } = req.body;
 
@@ -226,8 +232,6 @@ app.post('/api/auth/login', async (req, res) => {
 			await user.save();
 			console.log('🆕 New User Created:', email);
 		} else {
-			// If it's a local login attempt and user exists, we should usually verify password
-			// but for this simple sync, we'll just update if needed
 			if (password && !user.password) {
 				user.password = password;
 				await user.save();
@@ -235,7 +239,11 @@ app.post('/api/auth/login', async (req, res) => {
 			console.log('👋 User Logged In:', email);
 		}
 
-		res.json(user);
+		// ESTABLISH SESSION: This was missing!
+		req.logIn(user, (err) => {
+			if (err) return next(err);
+			return res.json(user);
+		});
 	} catch (error) {
 		res.status(500).json({ error: error.message });
 	}
