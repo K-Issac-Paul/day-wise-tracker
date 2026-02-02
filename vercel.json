@@ -1,13 +1,14 @@
 {
 	"version": 2,
+	"functions": {
+		"server.js": {
+			"includeFiles": "*.{html,css,js}"
+		}
+	},
 	"rewrites": [
 		{
-			"source": "/api/(.*)",
+			"source": "/(.*)",
 			"destination": "/server.js"
-		},
-		{
-			"source": "/",
-			"destination": "/index.html"
 		}
 	]
 }
