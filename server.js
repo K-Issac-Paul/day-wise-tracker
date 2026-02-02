@@ -6,6 +6,7 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const path = require('path');
 
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (Render/Heroku)
@@ -48,7 +49,12 @@ app.use((req, res, next) => {
 });
 
 // Serve static files AFTER passport/session middleware
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname)));
+
+// Fallback for root route if static serving fails
+app.get('/', (req, res) => {
+	res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 
 // MongoDB Connection
@@ -385,6 +391,10 @@ app.post('/api/budget', async (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
-	console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+	app.listen(PORT, () => {
+		console.log(`🚀 Server running on http://localhost:${PORT}`);
+	});
+}
+
+module.exports = app;
