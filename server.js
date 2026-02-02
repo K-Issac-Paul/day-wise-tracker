@@ -14,10 +14,19 @@ const PORT = process.env.PORT || 5000;
 
 // Determine BASE_URL dynamically (Local vs Production)
 const IS_LOCAL = !process.env.BASE_URL || process.env.BASE_URL.includes('localhost');
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+let BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+// Remove trailing slash if present to avoid double slashes in callbacks
+if (BASE_URL.endsWith('/')) {
+	BASE_URL = BASE_URL.slice(0, -1);
+}
 
 console.log(`🌍 Environment: ${IS_LOCAL ? 'LOCAL' : 'PRODUCTION'}`);
 console.log(`🔗 Base URL: ${BASE_URL}`);
+
+// Check for required Env Vars
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+	console.error("❌ CRITICAL: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is missing!");
+}
 
 // Middleware
 app.use(cors({
@@ -58,11 +67,14 @@ app.get('/', (req, res) => {
 
 
 // MongoDB Connection
-// MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI;
 
 // Optimized connection function for Serverless (Vercel)
 const connectDB = async () => {
+	if (!MONGODB_URI) {
+		console.error("❌ MongoDB URI is missing!");
+		return;
+	}
 	try {
 		if (mongoose.connection.readyState === 1) {
 			return;
@@ -207,10 +219,22 @@ app.get('/api/auth/google/callback',
 		passport.authenticate('google', (err, user, info) => {
 			if (err) {
 				console.error('Passport Auth Error:', err);
+				const hasSecret = !!process.env.GOOGLE_CLIENT_SECRET;
+				const hasId = !!process.env.GOOGLE_CLIENT_ID;
 				if (err.message.includes('buffering timed out')) {
 					return res.status(500).send('Database Error: Connection to MongoDB timed out. Please ensure your MongoDB service is running.');
 				}
-				return res.status(500).send(`Auth Error: ${err.message}. If this is a Client Secret issue, please check your .env file.`);
+				return res.status(500).send(`
+                    <h1>Auth Error: ${err.message}</h1>
+                    <p>Debug info:</p>
+                    <ul>
+                        <li>Environment: ${IS_LOCAL ? 'Local' : 'Production'}</li>
+                        <li>Has Client ID: ${hasId ? 'Yes' : 'NO (Check Vercel Env Vars)'}</li>
+                        <li>Has Client Secret: ${hasSecret ? 'Yes' : 'NO (Check Vercel Env Vars)'}</li>
+                        <li>Base URL: ${BASE_URL}</li>
+                    </ul>
+                    <p>If values are 'NO', please go to Vercel Dashboard > Settings > Environment Variables.</p>
+                `);
 			}
 			if (!user) {
 				return res.status(401).send('Auth Failed: No user found. Check your Google Console settings.');
