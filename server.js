@@ -58,17 +58,33 @@ app.get('/', (req, res) => {
 
 
 // MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/protrack';
+// MongoDB Connection
+const MONGODB_URI = process.env.MONGODB_URI;
 
-mongoose.connect(MONGODB_URI, {
-	serverSelectionTimeoutMS: 5000, // Fail fast if MongoDB is down
-	connectTimeoutMS: 10000,
-})
-	.then(() => console.log('✅ Connected to MongoDB'))
-	.catch(err => {
+// Optimized connection function for Serverless (Vercel)
+const connectDB = async () => {
+	try {
+		if (mongoose.connection.readyState === 1) {
+			return;
+		}
+		await mongoose.connect(MONGODB_URI, {
+			serverSelectionTimeoutMS: 5000,
+			connectTimeoutMS: 10000,
+		});
+		console.log('✅ Connected to MongoDB');
+	} catch (err) {
 		console.error('❌ MongoDB Connection Error:', err.message);
-		console.log('👉 Make sure Windows MongoDB service is STARTED (check services.msc).');
-	});
+	}
+};
+
+// Middleware to ensure DB is connected before API routes
+app.use(async (req, res, next) => {
+	// Only wait for DB on API routes to avoid slowing down static files (though Vercel handles static separate)
+	if (req.path.startsWith('/api')) {
+		await connectDB();
+	}
+	next();
+});
 
 // ==========================================
 // Database Schemas
